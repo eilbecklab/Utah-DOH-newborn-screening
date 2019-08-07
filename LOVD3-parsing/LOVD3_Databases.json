@@ -1,0 +1,35 @@
+// This is the input json config file for the web scraping of the LOVD3 Databases
+// This must contain lists of the disease, plus a list of genes per each disease
+// Additionally, this must contain the info about the websites for parsing all of the data
+[
+  {
+    "name":"Global_Variome",
+    "home link": "https://databases.lovd.nl/shared/genes/{gene}",
+    "data link": "https://databases.lovd.nl/shared/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+    "contains unique variants" : true
+  },
+  {
+    "name":"Human_Variome",
+    "home link": "http://proteomics.bio21.unimelb.edu.au/lovd/genes/{gene}",
+    "data link": "http://proteomics.bio21.unimelb.edu.au/lovd/ajax/viewlist.php?viewlistid=CustomVL_VOT_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscript%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&skip[chromosome]=chromosome&skip[allele_]=allele_&skip[transcriptid]=transcriptid&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+    "contains unique variants" : false
+  },
+  {
+    "name":"MSeqDR-LSDB",
+    "home link": "https://mseqdr.org/MITO/genes/{gene}",
+    "data link": "https://mseqdr.org/MITO/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+    "contains unique variants" : true
+  },
+  {
+    "name":"BIPmed_SNPhg19",
+    "home link": "http://bipmed.iqm.unicamp.br/snparray_hg19/genes/{gene}",
+    "data link": "http://bipmed.iqm.unicamp.br/snparray_hg19/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+    "contains unique variants" : true
+  },
+  {
+    "name":"BIPmed_WES",
+    "home link": "http://bipmed.iqm.unicamp.br/wes_hg19/genes/{gene}",
+    "data link": "http://bipmed.iqm.unicamp.br/wes_hg19/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+    "contains unique variants" : true
+  }
+]
