@@ -22,10 +22,6 @@ from argparse import ArgumentParser, FileType
 import json5
 from os.path import splitext
 
-# ncbi_api_key = os.environ.get('ncbi_api_key')
-# this should theoretically speed it up to 10 per second instead of 3 per second
-# https://github.com/biocommons/bioutils
-# but I don't think this is working
 
 args = ArgumentParser('./LOVD3_Variant_Parser.py', description='This program has been designed to web scrape the LOVD3 databases to obtain the information listed for variants in specific genes relating to a disase. For details on preparing input files, see LOVD3_README.md. Example usage: ./LOVD3_Variant_Parser.py --config_file LOVD3_Databases.json --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases --output_directory Total_Outputs --chr_to_accession Chromosome_name_to_accession.csv --transcript_info Transcript_Info_For_Dictionaries.csv')
 
@@ -458,17 +454,21 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 						gene_df = gene_df.rename(index = str, columns = {"DNA change (cDNA)": "Transcript Notation"})
 					else:
 						gene_df["Transcript Notation"] = "-"
+					if "DNA change (genomic)" in column_names:
+						gene_df = gene_df.rename(index = str, columns = {"DNA change (genomic)": "DNA change (genomic) (hg19)"})
 
 
 					if database_contains_unique == False: # This is one of the things coded in the JSON config file
 						counts_df = pd.DataFrame(gene_df.groupby("Transcript Notation").size())
 						counts_df.columns = ["Reported"]
-						gene_df = pd.merge(gene_df, counts_df, on = "Transcript Notation").drop_duplicates()
+						gene_df = pd.merge(gene_df, counts_df, on = "Transcript Notation").drop_duplicates(["Transcript Notation", "DNA change (genomic) (hg19)"], keep='first')
 
 					### Not all of the LOVD databases give the same output, so I am going to fill some of those in with a dash if they are not present
 
-					if "DNA change (genomic)" in column_names:
-						gene_df = gene_df.rename(index = str, columns = {"DNA change (genomic)": "DNA change (genomic) (hg19)"})
+					# If reported has been added, we need to add reported
+					# If one of the other column names has changed, we need to add those too
+					# It is simplest to just get all of the column names again
+					column_names = gene_df.columns
 					if "DNA change (genomic) (hg19)" not in column_names:
 						gene_df["DNA change (genomic) (hg19)"] = "-"
 
@@ -556,8 +556,9 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 									  'Reference', 'Frequency']]
 					failed_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] == "-"]
 					successful_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] != "-"]
-
-					successful_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"_"+transcript_accession+"_"+database_name+"_results.csv")
+					if len(successful_HGVS_df) > 0:
+						# There have been a few of these that only have a couple of annotations and all of them fail normalization
+						successful_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"_"+transcript_accession+"_"+database_name+"_results.csv")
 					if len(failed_HGVS_df) > 0:
 						failed_HGVS_df['Failure Reason'] = failed_HGVS_df.apply(find_failure_reason, axis = 1)
 						## There are so few that are failing currently that I think I will just put this out as one csv
