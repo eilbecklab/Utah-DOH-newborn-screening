@@ -207,18 +207,22 @@ def normalize_variant(row):
 	transcript_notation = row["HGVS Transcript Notation"]
 	Genomic_annotation = row["Genomic Annotation"]
 	Var_Type = row["Variant Type"]
+	transcript_error = "-"
+	genomic_error = "-"
 	try:
 		# this should work for the majority of the variants
 		Genomic_Normalized = str(am.c_to_g(hp.parse_hgvs_variant(transcript_notation)))
-	except hgvs.exceptions.HGVSError:
+	except hgvs.exceptions.HGVSError as e:
 		# If this doesn't run from the transcript_notation, then we need to run either the normalization
 		# or the validation on the genomic annotation
+		transcript_error = str(e)
 		if Var_Type == "single nucleotide variant":
 			# these ones just need to run validation
 			try:
 				validated = vr.validate(hp.parse_hgvs_variant(Genomic_annotation))
 				#vr.validate( hp.parse_hgvs_variant('NM_001197320.1:c.281A>T') )
-			except hgvs.exceptions.HGVSError:
+			except hgvs.exceptions.HGVSError as e:
+				genomic_error = str(e)
 				validated = False
 			if validated == True:
 				Genomic_Normalized = Genomic_annotation
@@ -228,9 +232,14 @@ def normalize_variant(row):
 			try:
 				# for everything that isn't a SNV, it needs to be normalized
 				Genomic_Normalized = str(hn.normalize(hp.parse_hgvs_variant(Genomic_annotation)))
-			except hgvs.exceptions.HGVSError:
+			except hgvs.exceptions.HGVSError as e:
+				genomic_error = str(e)
 				Genomic_Normalized = "-"
-	return(Genomic_Normalized)
+	row["HGVS Normalized Genomic Annotation"] = Genomic_Normalized
+	row["Transcript Normalization Failure Message"] = transcript_error
+	row["Genomic Normalization Failure Message"] = genomic_error
+	return row
+
 
 
 def get_positions(row):
@@ -317,24 +326,50 @@ def get_positions(row):
 
 
 def find_failure_reason(row):
-	reason = "-"
-	Var_type = row["Variant Type"]
-	Genomic_annotation = row["Genomic Annotation"]
-	ins_unknown_search = re.search(r"[ins|dup]\d+", Genomic_annotation)
-	microsatellite_search = re.search(r"[\[|\(]\d+[\]|\)]", Genomic_annotation) #search for a number in either square brackets or parentheses
-	if Genomic_annotation == "-":
-		reason = "No Genomic Annotation"
-	if ">" in Genomic_annotation:
-		reason = "Incorrect Base"
-	elif "?" in Genomic_annotation:
-		reason = "Unknown Breakpoint"
-	elif ")_(" in Genomic_annotation:
-		reason = "Compound Variant"
-	elif microsatellite_search != None:
-		reason = "Microsatellite"
-	elif ins_unknown_search != None:
-		reason = "Inserted unknown sequence (Number)"
-	return reason
+	transcript_err = row["Transcript Normalization Failure Message"]
+	genome_err = row["Genomic Normalization Failure Message"]
+	reason = "-" # None should return this, but just in case
+	if ":g.?:" not in genome_err:
+		microsatellite_search = re.search(r"\[\d+\]", genome_err)
+		inserted_unknown_search = re.search(r"ins\(?.?(\d+|\?)", genome_err)
+		if "does not agree with reference sequence" in genome_err:
+			reason = "Incorrect reference base"
+		elif microsatellite_search != None:
+			reason = "Microsatellite"
+		elif inserted_unknown_search != None:
+			# May also contain an unknown breakpoint
+			if "(?_" in genome_err or "_?)" in genome_err:
+				reason = "Inserted unknown sequence, unknown breakpoint"
+			else:
+				reason = "Inserted unknown sequence"
+		elif "?" in genome_err:
+			reason = "Unknown breakpoint"
+		elif ")_(" in genome_err:
+			reason = "Compound variant"
+		else:
+			reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
+	else:
+		# These ones have no information for genomic, but may have something for the transcript annotation
+		microsatellite_search = re.search(r"\[\d+\]", transcript_err)
+		inserted_unknown_search = re.search(r"ins\(?.?(\d+|\?)", transcript_err)
+		if ":c.?:" in transcript_err:
+			reason = "No variant information provided"
+		elif microsatellite_search != None:
+			reason = "Microsatellite"
+		elif inserted_unknown_search != None:
+			# May also contain an unknown breakpoint
+			if "(?_" in transcript_err or "_?)" in transcript_err:
+				reason = "Inserted unknown sequence, unknown breakpoint"
+			else:
+				reason = "Inserted unknown sequence"
+		elif "?" in transcript_err:
+			reason = "Unknown breakpoint"
+		elif ")_(" in transcript_err:
+			reason = "Compound variant"
+		else:
+			reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
+	row["HGVS Normalization Failure Reason"] = reason
+	return row
 
 def web_scrape(disease_names, input_gene_lists, databases_list):
 	for database in databases_list:
@@ -522,7 +557,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 					gene_df["Genomic Annotation"] = Chr_accession+":"+gene_df["DNA change (genomic) (hg19)"]
 					gene_df["Variant Type"] = gene_df.apply(get_variant_type, axis = 1)
 					gene_df["HGVS Transcript Notation"] = transcript_accession+":"+gene_df["Transcript Notation"]
-					gene_df["HGVS Normalized Genomic Annotation"] = gene_df.apply(normalize_variant, axis = 1)
+					gene_df = gene_df.apply(normalize_variant, axis = 1)
 
 					## Now I am getting the info from the normalized annotation that is included in ClinVar but not in LOVD
 					gene_df = gene_df.apply(get_positions, axis = 1)
@@ -553,15 +588,15 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 									  'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
 									  'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 									   'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-									  'Reference', 'Frequency']]
+									  'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
 					failed_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] == "-"]
 					successful_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] != "-"]
 					if len(successful_HGVS_df) > 0:
 						# There have been a few of these that only have a couple of annotations and all of them fail normalization
 						successful_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"_"+transcript_accession+"_"+database_name+"_results.csv")
 					if len(failed_HGVS_df) > 0:
-						failed_HGVS_df['Failure Reason'] = failed_HGVS_df.apply(find_failure_reason, axis = 1)
 						## There are so few that are failing currently that I think I will just put this out as one csv
+						failed_HGVS_df = failed_HGVS_df.apply(find_failure_reason, axis = 1)
 						failed_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/Invalid_Annotations/"+gene+"_"+transcript_accession+"_"+database_name+"_InvalidResults.csv")
 					print("Finished "+transcript_accession+" for gene "+gene+" in database "+database_name+".", sep = "")
 
