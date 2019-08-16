@@ -167,161 +167,223 @@ def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id
 			return output_results, header_list
 
 
-def get_variant_type(row):
-	genomic_variant = row["DNA change (genomic) (hg19)"]
-	transcript_variant = row["Transcript Notation"]
-	Var_Type = "-" # set it to a dash as the default
-	if ">" in transcript_variant:
-		Var_Type = "single nucleotide variant"
-	elif "delins" in transcript_variant:
-		Var_Type = "Indel"
-	elif "del" in transcript_variant and "ins" in transcript_variant:
-		Var_Type = "Indel" # this will pick up ones like 123delCATinsATTG
-	elif "del" in transcript_variant:
-		Var_Type = "Deletion"
-	elif "ins" in transcript_variant:
-		Var_Type = "Insertion"
-	elif "dup" in transcript_variant:
-		Var_Type = "Duplication"
-	elif "inv" in transcript_variant:
-		Var_Type = "Inversion"
-	# If it didn't get it for any of these, then I need to try this with the genomic variant
-	elif ">" in genomic_variant:
-		Var_Type = "single nucleotide variant"
-	elif "delins" in genomic_variant:
-		Var_Type = "Indel"
-	elif "del" in genomic_variant and "ins" in genomic_variant:
-		Var_Type = "Indel" # this will pick up ones like 123delCATinsATTG
-	elif "del" in genomic_variant:
-		Var_Type = "Deletion"
-	elif "ins" in genomic_variant:
-		Var_Type = "Insertion"
-	elif "dup" in genomic_variant:
-		Var_Type = "Duplication"
-	elif "inv" in genomic_variant:
-		Var_Type = "Inversion"
-	return (Var_Type)
-
-
 def normalize_variant(row):
 	transcript_notation = row["HGVS Transcript Notation"]
 	Genomic_annotation = row["Genomic Annotation"]
-	Var_Type = row["Variant Type"]
 	transcript_error = "-"
 	genomic_error = "-"
-	try:
-		# this should work for the majority of the variants
-		Genomic_Normalized = str(am.c_to_g(hp.parse_hgvs_variant(transcript_notation)))
-	except hgvs.exceptions.HGVSError as e:
-		# If this doesn't run from the transcript_notation, then we need to run either the normalization
-		# or the validation on the genomic annotation
-		transcript_error = str(e)
-		if Var_Type == "single nucleotide variant":
-			# these ones just need to run validation
-			try:
-				validated = vr.validate(hp.parse_hgvs_variant(Genomic_annotation))
-				#vr.validate( hp.parse_hgvs_variant('NM_001197320.1:c.281A>T') )
-			except hgvs.exceptions.HGVSError as e:
-				genomic_error = str(e)
-				validated = False
-			if validated == True:
-				Genomic_Normalized = Genomic_annotation
-			else:
-				Genomic_Normalized = "-"
-		else:
-			try:
-				# for everything that isn't a SNV, it needs to be normalized
-				Genomic_Normalized = str(hn.normalize(hp.parse_hgvs_variant(Genomic_annotation)))
-			except hgvs.exceptions.HGVSError as e:
-				genomic_error = str(e)
-				Genomic_Normalized = "-"
-	row["HGVS Normalized Genomic Annotation"] = Genomic_Normalized
-	row["Transcript Normalization Failure Message"] = transcript_error
-	row["Genomic Normalization Failure Message"] = genomic_error
-	return row
-
-
-
-def get_positions(row):
-	genomic_variant = row["HGVS Normalized Genomic Annotation"]
-	old_var_type = row["Variant Type"]
-	# Many of the non SNVs are annotated incorrectly, which can be found after they are normalized.
-	# I am going to redo these ones and hopefully correct any problems.
-	if ">" in genomic_variant:
-		Var_Type = "single nucleotide variant"
-	elif "delins" in genomic_variant:
-		Var_Type = "Indel"
-	elif "del" in genomic_variant and "ins" in genomic_variant:
-		Var_Type = "Indel" # this will pick up ones like 123delCATinsATTG
-	elif "del" in genomic_variant:
-		Var_Type = "Deletion"
-	elif "ins" in genomic_variant:
-		Var_Type = "Insertion"
-	elif "dup" in genomic_variant:
-		Var_Type = "Duplication"
-	elif "inv" in genomic_variant:
-		Var_Type = "Inversion"
-	else:
-		Var_Type = old_var_type
-	## Now I am going to set the other variables to a dash and fill them in as it goes along
+	Var_Type = "-"
 	Position_g_start = "-"
 	Position_g_stop = "-"
 	Var_Length = "-"
 	Ref_allele = "-"
 	Alt_allele = "-"
-	pos_start_search = re.search(r"g.(\d+)", genomic_variant)
-	if pos_start_search != None:
-		Position_g_start = pos_start_search.group(1)
-	if Var_Type == "single nucleotide variant":
-		Position_g_stop = Position_g_start
-		Var_Length = 1
-		ref_allele_search = re.search(r"g.\d+([A,C,T,G])>([A,C,T,G])", genomic_variant)
-		if ref_allele_search != None:
-			Ref_allele = ref_allele_search.group(1)
-			Alt_allele = ref_allele_search.group(2)
-	elif Var_Type == "Indel":
-		# Var_Length for indels is inconsistent in ClinVar, so I will leave these as a dash
-		# Can't obtain reference allele without looking it up, which would take a request and be slow so ref will stay as a dash
-		alt_allele_search = re.search(r"ins([A,C,T,G]+)", genomic_variant)
-		if alt_allele_search != None:
-			Alt_allele = alt_allele_search.group(1)
-		multiple_location_search = re.search(r"\d+_\d+", genomic_variant)
-		if multiple_location_search == None:
-			Position_g_stop = Position_g_start
+	Genomic_Normalized = "-"
+
+	try:
+		# this should work for the majority of the variants
+		converted_object = am.c_to_g(hp.parse_hgvs_variant(transcript_notation))
+	except hgvs.exceptions.HGVSError as e:
+		transcript_error = str(e)
+		# If this doesn't run using the transcript_notation, then we need to run either the normalization
+		# or the validation on the genomic annotation
+
+		if ">" in Genomic_annotation:
+			# These are SNVs, they just need to run validation
+			converted_object = None # Needs to be present later in loop
+			try:
+				validated = vr.validate(hp.parse_hgvs_variant(Genomic_annotation))
+			except hgvs.exceptions.HGVSError as e:
+				genomic_error = str(e)
+				validated = False
+			if validated == True:
+				Genomic_Normalized = Genomic_annotation
+				Var_Type = "single nucleotide variant"
+				Var_Length = 1
+				pos_search = re.search(r"g.(\d+)", Genomic_Normalized)
+				if pos_search != None:
+					Position_g_start = pos_search.group(1)
+				Position_g_stop = Position_g_start # May be a dash
+				ref_and_alt_allele_search = re.search(r"g.\d+([A,C,T,G])>([A,C,T,G])", Genomic_Normalized)
+				if ref_and_alt_allele_search != None:
+					Ref_allele = ref_and_alt_allele_search.group(1)
+					Alt_allele = ref_and_alt_allele_search.group(2)
+			# No else statement needed, all will stay as dashes if failed validation (incorrect base)
+
+
 		else:
-			stop_search = re.search(r"_(\d+)del", genomic_variant)
-			if stop_search != None:
-				Position_g_stop = stop_search.group(1)
-	elif Var_Type == "Insertion":
-		# Reference will always be a dash
-		# I think the stop should always be start plus one, but in case it is funky I am gong to use the regex anyway
-		stop_search = re.search(r"_(\d+)ins", genomic_variant)
-		if stop_search != None:
-			Position_g_stop = stop_search.group(1)
-		# Ref allele is always a dash, and we can get the Alt allele from the end of this
-		alt_allele_search = re.search(r"ins([A,C,T,G]+)", genomic_variant)
-		if alt_allele_search != None:
-			Alt_allele = alt_allele_search.group(1)
-		if Alt_allele != "-":
-			Var_Length = len(Alt_allele)
-	elif Var_Type == "Duplication" or Var_Type == "Deletion" or Var_Type == "Inversion":
-		# Can't get reference or alternate for any of these
-		multiple_location_search = re.search(r"\d+_\d+", genomic_variant)
-		if multiple_location_search == None:
-			Position_g_stop = Position_g_start
+			# for everything that isn't a SNV, it needs to be normalized
+			try:
+				converted_object = hn.normalize(hp.parse_hgvs_variant(Genomic_annotation))
+			except hgvs.exceptions.HGVSError as e:
+				genomic_error = str(e)
+				Genomic_Normalized = "-"
+				converted_object = None
+	# Now use the converted object to fill everything in that you possibly can
+
+	if converted_object != None:
+		# If a converted object is saved, then it can be used to obtain lots of information about the variant.
+		Genomic_Normalized = str(converted_object)
+		try:
+			Var_variable = converted_object.posedit.edit.type
+		except AttributeError:
+			Var_variable = "-"
+		# Change these to be consistent with ClinVar
+		if Var_variable == "ins":
+			Var_Type = "Insertion"
+		elif Var_variable == "del":
+			Var_Type = "Deletion"
+		elif Var_variable == "sub":
+			Var_Type = "single nucleotide variant"
+		elif Var_variable == "inv":
+			Var_Type = "Inversion"
+		elif Var_variable == "delins":
+			Var_Type = "Indel"
+		elif Var_variable == "dup":
+			Var_Type = "Duplication"
+		elif Var_variable == None:
+			Var_Type = "-"
+		else:
+			Var_Type = Var_variable # Anything that was not in this list will just end up putting the variable so it can be seen in the output file
+
+		try:
+			Position_g_start = converted_object.posedit.pos.start.base
+		except AttributeError:
+			Position_g_start = "-"
+		try:
+			Position_g_stop = converted_object.posedit.pos.end.base
+		except AttributeError:
+			Position_g_stop = "-"
+
+		if Var_Type == "Insertion":
+			Ref_allele = "-"
+		else:
+			try:
+				Ref_allele = converted_object.posedit.edit.ref
+			except AttributeError:
+				Ref_allele = "-"
+
+		if Var_Type == "Duplication":
+			Alt_allele = Ref_allele+Ref_allele
+		elif Var_Type == "Inversion" or Var_Type == "Deletion":
+			Alt_allele = "-"
+		else:
+			try:
+				Alt_allele = converted_object.posedit.edit.alt
+			except AttributeError:
+				Alt_allele = "-"
+
+		if Var_Type == "Insertion" or Var_Type == "Inversion" or Var_Type == "Duplication":
+			Var_Length = str(int(Position_g_stop)-int(Position_g_start)+1)
+		else:
+			Var_Length = converted_object.posedit.edit.ref_n
+	# At this point if something is missing (predominantly just the ones that didn't pass validation)
+	# Then we can try to fill in the blanks from what is provided
+	input_for_filling_blanks = "-"
+	using_transcript = False # I can't get the variant position if I use the transcript for info
+	if Genomic_Normalized != "-":
+		input_for_filling_blanks = Genomic_Normalized
+	elif "g.?" not in Genomic_annotation:
+		input_for_filling_blanks = Genomic_annotation
+	elif "c.?" not in transcript_notation:
+		input_for_filling_blanks = transcript_notation
+		using_transcript = True
+	if input_for_filling_blanks != "-":
+		if Var_Type == "-":
+			if ">" in input_for_filling_blanks:
+				Var_Type = "single nucleotide variant"
+			elif "delins" in input_for_filling_blanks:
+				Var_Type = "Indel"
+			elif "del" in input_for_filling_blanks and "ins" in input_for_filling_blanks:
+				Var_Type = "Indel" # this will pick up ones like 123delCATinsATTG
+			elif "del" in input_for_filling_blanks:
+				Var_Type = "Deletion"
+			elif "ins" in input_for_filling_blanks:
+				Var_Type = "Insertion"
+			elif "dup" in input_for_filling_blanks:
+				Var_Type = "Duplication"
+			elif "inv" in input_for_filling_blanks:
+				Var_Type = "Inversion"
+
+		if Position_g_start == "-" and not using_transcript: # Only do the regex loop if start position is missing
+			pos_start_search = re.search(r"g.(\d+)", input_for_filling_blanks)
+			if pos_start_search != None:
+				Position_g_start = pos_start_search.group(1)
+
+		## Filling in the rest of the information about the variant depends on what the variant type is
+
+		if Var_Type == "single nucleotide variant":
+			if Position_g_stop == "-":
+				Position_g_stop = Position_g_start
 			Var_Length = 1
-		else:
-			stop_search = re.search(r"_(\d+)[a-z]+", genomic_variant)
-			if stop_search != None:
-				Position_g_stop = stop_search.group(1)
+			if Ref_allele == "-" or Alt_allele == "-": # Only run the regex loop if something is missing
+				ref_allele_search = re.search(r"g.\d+([A,C,T,G])>([A,C,T,G])", input_for_filling_blanks)
+				if ref_allele_search != None:
+					if Ref_allele == "-":
+						Ref_allele = ref_allele_search.group(1)
+					if Alt_allele == "-":
+						Alt_allele = ref_allele_search.group(2)
+		elif Var_Type == "Indel":
+			# Var_Length for indels is inconsistent in ClinVar, so I will leave these as a dash
+			# Can't obtain reference allele without looking it up, which would take a request and be slow so ref will stay as a dash
+			if Alt_allele == "-": # Only run the regex loop if Alt_allele is missing
+				alt_allele_search = re.search(r"ins\(?([A,C,T,G]+)", input_for_filling_blanks) # Some of these have the inserted variant in parentheses
+				if alt_allele_search != None:
+					Alt_allele = alt_allele_search.group(1)
+			if Position_g_stop == "-" and not using_transcript: # Only run the regex loop if Position_g_stop is missing
+				multiple_location_search = re.search(r"\d+_(\d+)del", input_for_filling_blanks)
+				if multiple_location_search == None:
+					Position_g_stop = Position_g_start
+				else:
+					Position_g_stop = multiple_location_search.group(1)
+		elif Var_Type == "Insertion":
+			# Reference will always be a dash
+			# I think the stop should always be start plus one, but in case it is funky I am going to use the regex anyway
+			if Position_g_stop == "-" or Alt_allele == "-": # Only run the regex loop if something is missing
+				info_search = re.search(r"_(\d+)ins\(?([A,C,T,G]+)", input_for_filling_blanks) # Some of these have the inserted variant in parenthese
+				if info_search != None:
+					if Position_g_stop == "-" and not using_transcript:
+						Position_g_stop = info_search.group(1)
+					if Alt_allele == "-":
+						Alt_allele = info_search.group(2)
+				# If the stop position is still a dash because the info search didn't return a result
+				if Position_g_stop == "-" and not using_transcript: # This happens when they end in an insertion of a number or a question mark
+					info_search = re.search(r"_(\d+)ins", input_for_filling_blanks)
+					if info_search != None:
+						Position_g_stop = info_search.group(1)
+			if Alt_allele != "-" and Var_Length == "-":
+				Var_Length = len(Alt_allele)
+		elif Var_Type == "Duplication" or Var_Type == "Deletion" or Var_Type == "Inversion":
+			# Can't get reference or alternate for any of these
+			if Position_g_stop == "-": # Only run the regex loop if something is missing
+				multiple_location_search = re.search(r"\d+_\d+", input_for_filling_blanks)
+				if multiple_location_search == None:
+					Position_g_stop = Position_g_start # If only one of these was a dash, the other one will be replaced too but should be replaced with the same thing
+					Var_Length = 1
+				elif not using_transcript:
+					stop_search = re.search(r"_(\d+)[a-z]+", input_for_filling_blanks) # This only yields valid results if not using the transcript info
+					if stop_search != None:
+						Position_g_stop = stop_search.group(1)
+			if Var_Length == "-" and Position_g_stop != "-" and Position_g_start != "-":
 				Var_Length = int(Position_g_stop) - int(Position_g_start) + 1
-	# Now save everything into the dataframe
-	row['Variant Type'] = Var_Type # This is replacing the old one, but should fix any messups from submission
+
+	# It turns out some of the reference and alternate alleles from the large variants (>30,000 bp) return valid answers, but they are too big to be opened in Excel
+	# Here I am just going to change those to something Excel can handle
+	if len(Ref_allele) > 1000:
+		Ref_allele = "Reference allele too long to include in table"
+	if len(Alt_allele) > 1000:
+		Alt_allele = "Alternate allele too long to include in table"
+
+	row["HGVS Normalized Genomic Annotation"] = Genomic_Normalized
+	row["Transcript Normalization Failure Message"] = transcript_error
+	row["Genomic Normalization Failure Message"] = genomic_error
+	row['Variant Type'] = Var_Type
 	row['Position Start'] = Position_g_start
 	row['Position Stop'] = Position_g_stop
 	row['Ref'] = Ref_allele
 	row['Alt'] = Alt_allele
 	row['Variant Length'] = Var_Length
+
 	return row
 
 
@@ -458,8 +520,8 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 				else:
 					Chr_accession = "-"
 				###
-				###  Now that we have the important information from the home page,
-				###  we can move on to getting the info from the pages from the individual transcripts
+				###	Now that we have the important information from the home page,
+				###	we can move on to getting the info from the pages from the individual transcripts
 				###
 				for i, LOVD_id in enumerate(LOVD_ids):
 					transcript_accession = transcript_accessions[i]
@@ -469,6 +531,8 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 						warnings.warn("Transcript "+transcript_accession+" in the database "+database_name+" has a page, but does not contain any variants.")
 						continue
 
+					# Some of the results have a \n (newline) and a \r (carriage return from Excel) in the middle of a column, which will make it
+					# This will shift a couple of the variables at the end (columns after the comments) but those are more comment fields that don't affect the variant information
 					necessary_length = len(label_list)
 					for i, sub_list in enumerate(results_list):
 						if len(sub_list) > necessary_length:
@@ -500,9 +564,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 
 					### Not all of the LOVD databases give the same output, so I am going to fill some of those in with a dash if they are not present
 
-					# If reported has been added, we need to add reported
-					# If one of the other column names has changed, we need to add those too
-					# It is simplest to just get all of the column names again
+					# The column_names list needs to be remade to match the new column names
 					column_names = gene_df.columns
 					if "DNA change (genomic) (hg19)" not in column_names:
 						gene_df["DNA change (genomic) (hg19)"] = "-"
@@ -551,21 +613,16 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 						gene_df["Submitter"] = "-"
 
 					###
-					###  Now everything that I can get out of the database is present in a pandas format
-					###  The next step is to normalize or validate the variant
+					###	Now everything that I can get out of the database is present in a pandas format
+					###	The next step is to normalize or validate the variant
 					###
 					gene_df["Genomic Annotation"] = Chr_accession+":"+gene_df["DNA change (genomic) (hg19)"]
-					gene_df["Variant Type"] = gene_df.apply(get_variant_type, axis = 1)
 					gene_df["HGVS Transcript Notation"] = transcript_accession+":"+gene_df["Transcript Notation"]
 					gene_df = gene_df.apply(normalize_variant, axis = 1)
-
-					## Now I am getting the info from the normalized annotation that is included in ClinVar but not in LOVD
-					gene_df = gene_df.apply(get_positions, axis = 1)
 
 					## Now I am going to try to format this to match the output from ClinVar as close as possible
 					## but most of the things I am adding will either be a dash or the same word for every column
 					gene_df["Genome Assembly"] = "GRCh37"
-					# Need to write an if statement to see if pathogenicity is in the output from LOVD
 					gene_df["Disease"] = "-"
 					gene_df["Inheritance Pattern"] = "-"
 					gene_df["Affected Genes"] = gene
@@ -580,15 +637,15 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 					gene_df["Star Level"] = "-"
 
 					gene_df = gene_df[['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 'Ref', 'Alt',
-									  'Genomic Annotation', 'HGVS Normalized Genomic Annotation', 'Variant Type',
-									  'Variant Length', 'Pathogenicity', 'Disease', 'Genetic Origin', 'Inheritance Pattern',
-									  'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
-									   'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
-									  'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
-									  'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
-									  'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
-									   'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-									  'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
+										'Genomic Annotation', 'HGVS Normalized Genomic Annotation', 'Variant Type',
+										'Variant Length', 'Pathogenicity', 'Disease', 'Genetic Origin', 'Inheritance Pattern',
+										'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
+										 'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
+										'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
+										'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
+										'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
+										 'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
+										'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
 					failed_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] == "-"]
 					successful_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] != "-"]
 					if len(successful_HGVS_df) > 0:
