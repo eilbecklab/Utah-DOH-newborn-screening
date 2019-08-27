@@ -1,23 +1,12 @@
-metabolic_disease_genes = ["ACADM", "ACADS", "ACADVL", "CPT1A", "CPT2", "ETFA", "ETFB", "ETFDH", "HADH", "HADHA", "HADHB", "SLC22A5", "SLC25A20"]
-
-
-SCID_genes = ["CORO1A", "CD247", "ATM", "LIG4", "DOCK2", "PRKDC", "DCLRE1C", "CHD7", "NHEJ1", "GATA2",
-            "TBX1", "IL2RG", "MTHFD1", "RAC2", "IGHM", "ADA", "IL7R", "MTR", "CD3G", "BTK",
-            "AK2", "JAK3", "RMRP", "STAT5B", "CD40LG", "CD3D", "RAG1", "SLC46A1", "ZAP70", "WAS",
-            "CD3E", "RAG2", "DOCK8", "PNP", "DKC1", "PTPRC", "FOXN1", "NBN", "BLNK"]
+#!/usr/bin/env python
+# coding: utf-8
 
 import os
-#ncbi_api_key = os.environ.get('ncbi_api_key') # I don't think this is doing anything
-# this should theoretically speed it up to 10 per second instead of 3 per second
-# https://github.com/biocommons/bioutils
-
+from argparse import ArgumentParser, FileType
+from os.path import splitext
 import pandas as pd
-
 import re
-#import warnings # May not need this one
 from xml.etree import ElementTree as ET
-#import requests # May not need this one
-#import json # May not need this one
 import hgvs.normalizer
 import hgvs.variantmapper
 import hgvs.dataproviders.uta
@@ -27,20 +16,77 @@ import hgvs.validator
 import hgvs.exceptions
 import pandas as pd
 import numpy as np
+import glob
+
+
+args = ArgumentParser('./ClinVar_Parser.py', description="""This program has been designed to parse the XML file
+containing the entire ClinVar database to obtain variant information for specific genes relating to a disase.
+For details on obtaining the ClinVar XML file, see README.md.
+Example usage: ./ClinVar_Parser.py --xml_file ClinVarFullRelease_00-latest.xml
+--disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases
+--output_directory Total_Outputs""")
+
+args.add_argument(
+	'--xml_file',
+	help="This is the ClinVar xml file that can be obtained form the NCBI database (ftp://ftp.ncbi.nlm.nih.gov/pub/clinvar/xml/). Default file is ClinVarFullRelease_00-latest.xml",
+	default="ClinVarFullRelease_00-latest.xml",
+)
+
+args.add_argument(
+	'--disease_gene_lists',
+	nargs='+', # This tells the program that if they specify this flag, they have to give it at least one input. If they don't specify it, then the default will go in.
+	help="""\
+This is a list of text files containing genes associated with the disease of interest. The text files
+should each contain a list of gene symbols for one given disease, one gene per line. The name of the disease will be specified
+by the arguement --disease_names. """,
+	default = None
+)
+
+args.add_argument(
+	'--disease_names',
+	nargs='+',
+	help="This is a list of the disease names to accompany the text files specified by the --disease_gene_lists option. If you do not use this option, the file names of the files specified in --disease_gene_lists (without the extensions) will be used as the disease names.",
+	default = None
+)
+
+args.add_argument(
+	'--output_directory',
+	help="This is the name of the directory in which you want your output results to be stored.",
+	default = "output_files"
+)
+
+
+args = args.parse_args()
+ClinVar_File = args.xml_file
+
+if args.disease_gene_lists == None:
+    # If no disease gene files were given, exit the program and list the txt files in the directory that are likely to be the disease gene files
+    txt_files_list = glob.glob("*.txt")
+    print("No gene list files specified. Please create a text file with a list of gene symbols, one on each line. \nExample usage: ./ClinVar_Parser.py --xml_file ClinVarFullRelease_00-latest.xml --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases --output_directory Total_Outputs \nPossible gene list files in your directory include: "+', '.join(txt_files_list))
+    exit(-1)
+input_gene_lists = []
+for text_file in args.disease_gene_lists:
+	input_gene_lists.append([line.rstrip('\n') for line in open(text_file)])
+
+if args.disease_names == None:
+	args.disease_names = [splitext(gene_list)[0] for gene_list in args.disease_gene_lists]
+disease_names = args.disease_names
+
+
+output_directory = args.output_directory
+for disease in disease_names:
+    os.makedirs(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/", exist_ok=True)
+    # This will make the output_directory, ClinVar, disease name, and Invalid_Annotations directories if they are not present
+
+# Moved these below all argparse statements because they take a long time to execute
 hdp = hgvs.dataproviders.uta.connect()
 hp = hgvs.parser.Parser()
 hn = hgvs.normalizer.Normalizer(hdp)
 am = hgvs.assemblymapper.AssemblyMapper(hdp, assembly_name='GRCh37', alt_aln_method='splign', replace_reference=True)
 vr = hgvs.validator.Validator(hdp=hdp)
 
-from datetime import datetime
 
-output_directory = "All_ClinVar_output_files/"
-os.makedirs(output_directory+"ClinVar/Not_Valid_Annotations/", exist_ok=True)
-# This will make the output_directory, ClinVar, and Not_Valid_Annotations directories if they are not present
-
-
-def parse_clinvar_xml(disease, list_of_genes, ClinVar_File):
+def parse_clinvar_xml(disease, list_of_genes, ClinVar_File, output_file):
 
     ClinVar_Variants = []
     not_annotated_variants = []
@@ -991,63 +1037,53 @@ def parse_clinvar_xml(disease, list_of_genes, ClinVar_File):
     if len(not_annotated_variants) > 0 :
         not_annotated_variants_DF = pd.DataFrame(not_annotated_variants)
         not_annotated_variants_DF.columns = column_labels
-        not_annotated_variants_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_not_annotated_variants_ClinVar.csv")
+        not_annotated_variants_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_not_annotated_variants_ClinVar.csv")
 
     if len(compound_variants) > 0 :
         compound_variants_DF = pd.DataFrame(compound_variants)
         compound_variants_DF.columns = column_labels
-        compound_variants_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_compound_variants_ClinVar.csv")
+        compound_variants_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_compound_variants_ClinVar.csv")
 
     if len(copy_number_variants) > 0 :
         copy_number_variants_DF = pd.DataFrame(copy_number_variants)
         copy_number_variants_DF.columns = column_labels
-        copy_number_variants_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_copy_number_variants_ClinVar.csv")
+        copy_number_variants_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_copy_number_variants_ClinVar.csv")
 
     if len(microsatellites) > 0 :
         microsatellites_DF = pd.DataFrame(microsatellites)
         microsatellites_DF.columns = column_labels
-        microsatellites_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_microsatellites_ClinVar.csv")
+        microsatellites_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_microsatellites_ClinVar.csv")
 
     if len(unknown_breakpoint) > 0 :
         unknown_breakpoint_DF = pd.DataFrame(unknown_breakpoint)
         unknown_breakpoint_DF.columns = column_labels
-        unknown_breakpoint_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_unknown_breakpoint_variants_ClinVar.csv")
+        unknown_breakpoint_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_unknown_breakpoint_variants_ClinVar.csv")
 
     if len(no_change_from_reference) > 0 :
         no_change_from_reference_DF = pd.DataFrame(no_change_from_reference)
         no_change_from_reference_DF.columns = column_labels
-        no_change_from_reference_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_no_change_from_reference_ClinVar.csv")
+        no_change_from_reference_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_no_change_from_reference_ClinVar.csv")
 
     if len(inserted_unknown_sequence) > 0 :
         inserted_unknown_sequence_DF = pd.DataFrame(inserted_unknown_sequence)
         inserted_unknown_sequence_DF.columns = column_labels
-        inserted_unknown_sequence_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_inserted_unknown_sequence_ClinVar.csv")
+        inserted_unknown_sequence_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_inserted_unknown_sequence_ClinVar.csv")
 
     if len(invalid_hgvs) > 0 :
         invalid_hgvs_DF = pd.DataFrame(invalid_hgvs)
         invalid_hgvs_DF.columns = column_labels
-        invalid_hgvs_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_invalid_hgvs_variants_ClinVar.csv")
+        invalid_hgvs_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_invalid_hgvs_variants_ClinVar.csv")
 
     if len(no_stars) > 0 :
         no_stars_DF = pd.DataFrame(no_stars)
         no_stars_DF.columns = column_labels
-        no_stars_DF.to_csv(output_directory+"ClinVar/Not_Valid_Annotations/"+disease+"_no_star_variants_ClinVar.csv")
+        no_stars_DF.to_csv(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/"+disease+"_no_star_variants_ClinVar.csv")
 
 
     # ClinVar_Variants should always have something, so I am not checking for length here
     ClinVar_DF = pd.DataFrame(ClinVar_Variants)
     ClinVar_DF.columns= column_labels
-    ClinVar_DF.to_csv(output_directory+"ClinVar/"+disease+"_Variants_ClinVar.csv")
+    ClinVar_DF.to_csv(output_directory+"/ClinVar/"+disease+"/"+disease+"_Variants_ClinVar.csv")
 
-
-ClinVar_File = 'ClinVarFullRelease_00-latest.xml' #Won't use this for test runs
-
-# Run it for SCID
-startTime = datetime.now()
-parse_clinvar_xml("SCID", SCID_genes, ClinVar_File)
-print("Time it took for SCID:", datetime.now() - startTime)
-
-# Run it for Metabolomics
-startTime = datetime.now()
-parse_clinvar_xml("Metabolic_Disease", metabolic_disease_genes, ClinVar_File)
-print("Time it took for Metabolic Diseases:", datetime.now() - startTime)
+for num, disease in enumerate(disease_names):
+    parse_clinvar_xml(disease, input_gene_lists[num], ClinVar_File, output_directory)
