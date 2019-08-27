@@ -20,7 +20,7 @@ import glob
 
 
 args = ArgumentParser('./ClinVar_Parser.py', description="""This program has been designed to parse the XML file
-containing the entire ClinVar database to obtain variant information for specific genes relating to a disase.
+containing the entire ClinVar database to obtain variant information for specific genes relating to a disease.
 For details on obtaining the ClinVar XML file, see README.md.
 Example usage: ./ClinVar_Parser.py --xml_file ClinVarFullRelease_00-latest.xml
 --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases
