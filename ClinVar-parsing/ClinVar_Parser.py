@@ -648,16 +648,19 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 				multi_gene = False
 				# If no gene symbol has been obtained yet, try to see if anything can be taken from the list of genes in the RCV
 				if Gene_Symbol == "-":
-					genes_from_diseases_list = []
-					for gene in genes_in_rcv:
-						if gene in gene_list:
-							genes_from_diseases_list.append(gene)
-					num_disease_genes = len(genes_from_diseases_list)
-					if num_disease_genes == 1:
-						Gene_Symbol = genes_from_diseases_list[0]
-					elif num_disease_genes > 1:
-						Gene_Symbol = ', '.join(genes_from_diseases_list)
-						multi_gene = True
+					if len(genes_in_rcv) == 1:
+						Gene_Symbol= genes_in_rcv[0]
+					else:
+						genes_from_diseases_list = []
+						for gene in genes_in_rcv:
+							if gene in gene_list and gene not in genes_from_diseases_list:
+								genes_from_diseases_list.append(gene)
+						num_disease_genes = len(genes_from_diseases_list)
+						if num_disease_genes == 1:
+							Gene_Symbol = genes_from_diseases_list[0]
+						elif num_disease_genes > 1:
+							Gene_Symbol = ', '.join(genes_from_diseases_list)
+							multi_gene = True
 
 				if Genomic_Normalized == "-":
 					variant_category = "Invalid"
