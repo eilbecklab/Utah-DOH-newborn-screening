@@ -412,7 +412,12 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 					use_for_biocommons = Genomic_annotation
 					match_ins = re.search(r'(.+ins)\d+', Genomic_annotation)
 					if match_ins != None and Alt_allele != "-":
-						use_for_biocommons = match_ins.group(1)+Alt_allele
+						if Ref_allele == Alt_allele[0]:
+							# Many of the insertions keep one base for the Ref_allele and then include it in the alternate
+							use_for_biocommons = match_ins.group(1)+Alt_allele[1:]
+						else:
+							# This will catch ones with Ref_allele == "-" and the indels that have an actual sequence for the ref allele
+							use_for_biocommons = match_ins.group(1)+Alt_allele
 					match_dup = re.search(r'(NC_\d+\.\d+:g\.\d+_?\d*dup)\d+', Genomic_annotation)
 					if match_dup != None:
 						use_for_biocommons = match_dup.group(1)
