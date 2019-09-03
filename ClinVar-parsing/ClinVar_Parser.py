@@ -688,10 +688,43 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 
 			if saved_to_dictionary == False:
 				# This means the variant wasn't saved anywhere
+				# These are probably large copy number variants where the "preferred" variant gene was not one in the input disease lists
+				# Need to check the gene list and pick one that is within a disease
+				for disease, gene_list in zip(disease_names, input_gene_lists):
+					multi_gene = False
+					genes_from_diseases_list = []
+					for gene in genes_in_rcv:
+						if gene in gene_list and gene not in genes_from_diseases_list:
+							genes_from_diseases_list.append(gene)
+					num_disease_genes = len(genes_from_diseases_list)
+					if num_disease_genes == 1:
+						Gene_Symbol = genes_from_diseases_list[0]
+					elif num_disease_genes > 1:
+						Gene_Symbol = ', '.join(genes_from_diseases_list)
+						multi_gene = True
+					# If num_disease_genes == 0, then just leave it alone
+
+					Individual_Variant_List = [Assembly, Chromosome, Position_g_start, Position_g_stop, Ref_allele,
+												Alt_allele, Genomic_annotation, Genomic_Normalized, Var_Type, Var_Length, Pathogenicity,
+												Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol,
+												Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
+												Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
+												"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
+												transcript_error, genomic_error]
+
+					if multi_gene == True:
+						saved_to_dictionary = True
+						combined_diseases_dictionary[disease]['Multiple_Genes'][variant_category].append(Individual_Variant_List)
+					elif Gene_Symbol in gene_list:
+						saved_to_dictionary = True
+						combined_diseases_dictionary[disease][Gene_Symbol][variant_category].append(Individual_Variant_List)
+
+			if saved_to_dictionary == False:
+				# If after that previous loop, there is still no gene associated with a disease, then put these into an output with no associated disease
 				if variant_category != "Invalid":
 					Individual_Variant_List.append("-")
 				no_gene_symbol.append(Individual_Variant_List)
-				print(RCV_num +" contains at least one variant that did not have a gene symbol associated with any of the diseases in the input. The information associated with this variant will be stored to "+output_directory+"/Not_Associated_With_Specified_Disease.csv")
+				print(RCV_num +" contains at least one variant that did not have a gene symbol associated with any of the diseases in the input. The information associated with this variant will be stored to "+output_directory+"/ClinVar/Not_Associated_With_Specified_Disease.csv")
 				print("Please check this variant on the ClinVar website: https://www.ncbi.nlm.nih.gov/clinvar/ ")
 
 	# Now save out the collected lists
