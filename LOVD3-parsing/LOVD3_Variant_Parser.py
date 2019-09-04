@@ -23,7 +23,7 @@ import json5
 from os.path import splitext
 
 
-args = ArgumentParser('./LOVD3_Variant_Parser.py', description='This program has been designed to web scrape the LOVD3 databases to obtain the information listed for variants in specific genes relating to a disase. For details on preparing input files, see LOVD3_README.md. Example usage: ./LOVD3_Variant_Parser.py --config_file LOVD3_Databases.json --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases --output_directory Total_Outputs --chr_to_accession Chromosome_name_to_accession.csv --transcript_info Transcript_Info_For_Dictionaries.csv')
+args = ArgumentParser('./LOVD3_Variant_Parser.py', description='This program has been designed to web scrape the LOVD3 databases to obtain the information listed for variants in specific genes relating to a disase. For details on preparing input files, see README.md. Example usage: ./LOVD3_Variant_Parser.py --config_file LOVD3_Databases.json --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases --output_directory Total_Outputs --chr_to_accession Chromosome_name_to_accession.csv --transcript_info Transcript_Info_For_Dictionaries.csv')
 
 args.add_argument(
 	'--config_file',
@@ -112,7 +112,7 @@ else:
 	unique_df = correct_chromosome_accessions[["Gene", "Chromosome_Accession"]].drop_duplicates()
 	gene_to_chr_accession_dict = dict(zip(list(unique_df["Gene"].values), list(unique_df["Chromosome_Accession"].values)))
 
-# These take quite some time to connect, so they have bene moved below the parser arguements.
+# These take quite some time to connect, so they have been moved below the parser arguements.
 hdp = hgvs.dataproviders.uta.connect()
 hp = hgvs.parser.Parser()
 hn = hgvs.normalizer.Normalizer(hdp)
@@ -458,7 +458,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 					else:
 						response_status = "Response status not coded. We suggest checking the error code online."
 
-					warnings.warn("Failed to read in web page for gene ", gene, " for the Human Variome Database.", sep = "")
+					warnings.warn("Failed to read in web page for gene ", gene, " for this database: ", database_name, sep = "")
 					warnings.warn(link)
 					warnings.warn(response_status)
 					warnings.warn("Response code:", response.status_code)

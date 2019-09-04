@@ -577,8 +577,8 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 							if stop_search != None:
 								if Position_g_stop == "-" and not using_transcript:
 									Position_g_stop = stop_search.group(1)
-								if Var_Length == "-" and Position_g_stop != "-" and Position_g_start != "-":
-									Var_Length = int(Position_g_stop) - int(Position_g_start) + 1
+							if Var_Length == "-" and Position_g_stop != "-" and Position_g_start != "-":
+								Var_Length = int(Position_g_stop) - int(Position_g_start) + 1
 
 			# There are still some things that can be filled in
 			if Assembly == "-":
