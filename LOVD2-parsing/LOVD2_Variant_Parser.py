@@ -403,7 +403,7 @@ def web_scrape(disease_names, input_gene_lists):
 						failure_reason = "Microsatellite"
 					elif inserted_unknown_search != None:
 						# May also contain an unknown breakpoint
-						if "(?_" in transcript_err or "_?)" in transcript_error:
+						if "(?_" in transcript_error or "_?)" in transcript_error:
 							failure_reason = "Inserted unknown sequence, unknown breakpoint"
 						else:
 							failure_reason = "Inserted unknown sequence"
