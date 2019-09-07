@@ -267,6 +267,7 @@ def web_scrape(disease_names, input_gene_lists):
 				Ref_allele = "-"
 				Alt_allele = "-"
 				Var_Length = "-"
+				genomic_error = "-"
 				variant = individual_dictionary["DNA change"]
 				if transcript_new != "-" and variant != "-":
 					hgvs_transcript = transcript_new+":"+variant
@@ -275,7 +276,9 @@ def web_scrape(disease_names, input_gene_lists):
 					hgvs_transcript = transcript+":"+variant
 					# Leave it as a dash if the DNA change is a dash, which is common
 				converted_object = None
-				if hgvs_transcript != "-":
+				if hgvs_transcript == "-":
+					transcript_error = "No variant information provided, Biocommons not used"
+				else:
 					# The ClinVar parser used some regex lines to make sure that duplications, insertions and indels didn't end in a number
 					# but I haven't seen any of those in the CCHMC. It can be copied from the ClinVar_Parser.py if needed
 					# see lines 413-423 in ClinVar_Parser.py
@@ -283,6 +286,43 @@ def web_scrape(disease_names, input_gene_lists):
 						converted_object = am.c_to_g(hp.parse_hgvs_variant(hgvs_transcript))
 					except hgvs.exceptions.HGVSError as e:
 						transcript_error = str(e)
+				if ":chr" in transcript_error:
+					# This means that the website has a genomic annotation instead of a transcript annotation.
+					# Need to buld an input for the genomic annotation and normalize using that method.
+					variant_search = re.search(r"chr.+:(\d+.+)", variant)
+					if variant_search != None:
+						tmp_genomic_annotation = Chr_Accession+":g."+variant_search.group(1)
+						if ">" in tmp_genomic_annotation:
+							converted_object = None # Needed later in loop
+							try:
+								validated = vr.validate(hp.parse_hgvs_variant(tmp_genomic_annotation))
+							except hgvs.exceptions.HGVSError as e:
+								genomic_error = str(e)
+								validated = False
+							if validated == True:
+								Genomic_annotation = tmp_genomic_annotation
+								Var_Type = "single nucleotide variant"
+								pos_search = re.search(r"g.(\d+)", Genomic_annotation)
+								if pos_search != None:
+									Position_g_start = pos_search.group(1)
+									Position_g_stop = Position_g_start # May be a dash
+								ref_and_alt_allele_search = re.search(r"g.\d+([A,C,T,G])>([A,C,T,G])", Genomic_annotation)
+								if ref_and_alt_allele_search != None:
+									Ref_allele = ref_and_alt_allele_search.group(1)
+									Alt_allele = ref_and_alt_allele_search.group(2)
+						else:
+							# This is all non-SNV variants. They need to be normalized rather than validated
+							# There are a number of variants that contain the information, but it is in a format that needs to be updated before HGVS normalization
+							use_for_biocommons = tmp_genomic_annotation
+							match_dup = re.search(r'(NC_\d+\.\d+:g\.\d+_?\d*dup)\d+', tmp_genomic_annotation)
+							if match_dup != None:
+								use_for_biocommons = match_dup.group(1)
+							try:
+								converted_object = hn.normalize(hp.parse_hgvs_variant(use_for_biocommons))
+							except hgvs.exceptions.HGVSError as e:
+								genomic_error = str(e)
+								converted_object = None
+
 				if converted_object != None:
 					Genomic_annotation = str(converted_object)
 					# If a converted object is saved, then it can be used to obtain lots of information about the variant.
@@ -395,24 +435,51 @@ def web_scrape(disease_names, input_gene_lists):
 				if Genomic_annotation == "-":
 					# Now find the failure reason if it didn't normalize properly, use the transcript_error and genomic_error messages
 					# Use the genomic error message first, because many have transcript messages that will say "out of region"
-					microsatellite_search = re.search(r"\[\d+\]", transcript_error)
-					inserted_unknown_search = re.search(r"ins\(?.?(\d+|\?)", transcript_error)
-					if "-:" in transcript_error:
-						failure_reason = "No variant information provided"
-					elif microsatellite_search != None:
-						failure_reason = "Microsatellite"
-					elif inserted_unknown_search != None:
-						# May also contain an unknown breakpoint
-						if "(?_" in transcript_error or "_?)" in transcript_error:
-							failure_reason = "Inserted unknown sequence, unknown breakpoint"
+
+					if ":chr" in transcript_error:
+						# If this is there, then a genomic annotation was attempted
+						microsatellite_search = re.search(r"\[\d+\]", genomic_error)
+						inserted_unknown_search = re.search(r"ins\(?.?(\d+|\?)", genomic_error)
+						if "does not agree with reference sequence" in genomic_error:
+							failure_reason = "Incorrect reference base"
+						elif microsatellite_search != None:
+							failure_reason = "Microsatellite"
+						elif inserted_unknown_search != None:
+							# May also contain an unknown breakpoint
+							if "(?_" in genomic_error or "_?)" in genomic_error:
+								failure_reason = "Inserted unknown sequence, unknown breakpoint"
+							else:
+								failure_reason = "Inserted unknown sequence"
+						elif "?" in genomic_error:
+							failure_reason = "Unknown breakpoint"
+						elif ")_(" in genomic_error:
+							failure_reason = "Compound variant"
 						else:
-							failure_reason = "Inserted unknown sequence"
-					elif "?" in transcript_error:
-						failure_reason = "Unknown breakpoint"
-					elif ")_(" in transcript_error:
-						failure_reason = "Compound variant"
+							failure_reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
+
 					else:
-						failure_reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
+						microsatellite_search = re.search(r"\[\d+\]", transcript_error)
+						inserted_unknown_search = re.search(r"ins\(?.?(\d+|\?)", transcript_error)
+						if "No variant information" in transcript_error:
+							failure_reason = transcript_error
+						elif "-:" in transcript_error:
+							failure_reason = "No variant information provided"
+						elif "does not agree with reference sequence" in transcript_error:
+							failure_reason = "Incorrect reference base"
+						elif microsatellite_search != None:
+							failure_reason = "Microsatellite"
+						elif inserted_unknown_search != None:
+							# May also contain an unknown breakpoint
+							if "(?_" in transcript_error or "_?)" in transcript_error:
+								failure_reason = "Inserted unknown sequence, unknown breakpoint"
+							else:
+								failure_reason = "Inserted unknown sequence"
+						elif "?" in transcript_error:
+							failure_reason = "Unknown breakpoint"
+						elif ")_(" in transcript_error:
+							failure_reason = "Compound variant"
+						else:
+							failure_reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
 				#
 				# Now put the variant information obtained into a list, and append it to the dictionary in the correct location
 				if Genomic_annotation == "-":
@@ -428,7 +495,7 @@ def web_scrape(disease_names, input_gene_lists):
 											individual_dictionary["Reported pathogenicity"], individual_dictionary["Concluded pathogenicity"],
 											individual_dictionary["Race"], individual_dictionary["Ethnic origin"],
 											individual_dictionary["Reference"], individual_dictionary["Variant remarks"],
-											transcript, individual_dictionary["dbSNP ID"], transcript_error, "-"]
+											transcript, individual_dictionary["dbSNP ID"], transcript_error, genomic_error]
 				if variant_category == "Invalid":
 					Individual_Variant_List.append(failure_reason)
 				# Now that the individual_variant_list has been created, append it to the dictionary where it belongs
