@@ -18,7 +18,7 @@
     "name":"MSeqDR-LSDB",
     "home link": "https://mseqdr.org/MITO/genes/{gene}",
     "data link": "https://mseqdr.org/MITO/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
-    "contains unique variants" : true
+    "contains unique variants" : false
   },
   {
     "name":"BIPmed_SNPhg19",
