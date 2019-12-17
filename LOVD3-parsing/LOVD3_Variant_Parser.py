@@ -558,9 +558,16 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 
 
 					if database_contains_unique == False: # This is one of the things coded in the JSON config file
-						counts_df = pd.DataFrame(gene_df.groupby("Transcript Notation").size())
-						counts_df.columns = ["Reported"]
-						gene_df = pd.merge(gene_df, counts_df, on = "Transcript Notation").drop_duplicates(["Transcript Notation", "DNA change (genomic) (hg19)"], keep='first')
+						columns = gene_df.columns
+						if "Reported" in columns:
+							gene_df = gene_df.astype({'Reported':'int'})
+							counts_df = pd.DataFrame(gene_df.groupby("Transcript Notation").sum())
+							columns = columns.drop('Reported')
+							gene_df = pd.merge(gene_df[columns], counts_df, on = "Transcript Notation").drop_duplicates(["Transcript Notation", "DNA change (genomic) (hg19)"], keep='first')
+						else:
+							counts_df = pd.DataFrame(gene_df.groupby("Transcript Notation").size())
+							counts_df.columns = ["Reported"]
+							gene_df = pd.merge(gene_df, counts_df, on = "Transcript Notation").drop_duplicates(["Transcript Notation", "DNA change (genomic) (hg19)"], keep='first')
 
 					### Not all of the LOVD databases give the same output, so I am going to fill some of those in with a dash if they are not present
 
