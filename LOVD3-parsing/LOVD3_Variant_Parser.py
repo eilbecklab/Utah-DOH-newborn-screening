@@ -16,6 +16,7 @@ import hgvs.exceptions
 import pandas as pd
 import numpy as np
 from itertools import count
+import glob
 
 
 from argparse import ArgumentParser, FileType
@@ -523,6 +524,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 				###	Now that we have the important information from the home page,
 				###	we can move on to getting the info from the pages from the individual transcripts
 				###
+				num_transcripts = 0 # Count the number of transcripts that end up getting saved
 				for i, LOVD_id in enumerate(LOVD_ids):
 					transcript_accession = transcript_accessions[i]
 
@@ -658,11 +660,50 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 					if len(successful_HGVS_df) > 0:
 						# There have been a few of these that only have a couple of annotations and all of them fail normalization
 						successful_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"_"+transcript_accession+"_"+database_name+"_results.csv")
+						num_transcripts += 1 # Add one to the number of transcripts that have had successful variant parsing
 					if len(failed_HGVS_df) > 0:
 						## There are so few that are failing currently that I think I will just put this out as one csv
 						failed_HGVS_df = failed_HGVS_df.apply(find_failure_reason, axis = 1)
 						failed_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/Invalid_Annotations/"+gene+"_"+transcript_accession+"_"+database_name+"_InvalidResults.csv")
 					print("Finished "+transcript_accession+" for gene "+gene+" in database "+database_name+".", sep = "")
+
+				# Some of the genes have multiple transcripts, and the same variant may be represented
+				# in more than one of the output files. The normalized variants need to be combined
+				# into a single output file so that further analysis does not count the variants
+				# more than once.
+				columns = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 'Ref', 'Alt',
+							'Genomic Annotation', 'HGVS Normalized Genomic Annotation', 'Variant Type',
+							'Variant Length', 'Pathogenicity', 'Disease', 'Genetic Origin', 'Inheritance Pattern',
+							'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
+							'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
+							'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
+							'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
+							'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
+							'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
+							'Reference', 'Frequency', 'Transcript Normalization Failure Message',
+							'Genomic Normalization Failure Message']
+				if num_transcripts > 1:
+					list_of_files = glob.glob(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"*results.csv")
+					# This way it can take the list of all files with the correct gene name in the correct folder
+					combined_df = pd.DataFrame(columns=columns)
+					for file in list_of_files:
+						combined_variants = combined_df["HGVS Normalized Genomic Annotation"].values
+						current_df = pd.read_csv(file, index_col=0)
+						current_variants = current_df["HGVS Normalized Genomic Annotation"].values
+						unique_list = []
+						for variant in current_variants:
+							if variant not in combined_variants:
+								unique_list.append(variant)
+						unique_df = current_df[current_df["HGVS Normalized Genomic Annotation"].isin(unique_list)]
+						combined_df = pd.concat([combined_df, unique_df]).reset_index(drop=True)
+					combined_df.to_csv(output_directory+'/'+database_name+'/'+disease_name+'/'+gene+'_Combined_Transcripts_'+database_name+'_results.csv')
+					# Now that you have a new file with the variants from all transcripts, move the old files into a new directory
+					os.makedirs(output_directory+'/'+database_name+"/"+disease_name+"/Individual_Transcripts", exist_ok = True)
+					# Make a directory to put the original files into instead of deleting them
+					for file in list_of_files:
+						file_name = file.split("/")[-1]
+						os.rename(file, output_directory+'/'+database_name+"/"+disease_name+"/Individual_Transcripts/"+file_name)
+
 
 # Now run the function
 web_scrape(disease_names, input_gene_lists, databases_list)
