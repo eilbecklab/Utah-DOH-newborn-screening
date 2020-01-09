@@ -16,7 +16,6 @@ import hgvs.exceptions
 import pandas as pd
 import numpy as np
 from itertools import count
-#import json
 
 from argparse import ArgumentParser, FileType
 import json5
@@ -58,6 +57,16 @@ args.add_argument(
 	'--transcript_info',
 	help="This is a csv file containing information about the NCBI chromosome accession for each transcript and each gene. This file will be used for variants where a gene name or transcript accession is provided, but no chromosome is provided. For formatting, see Transcript_Info_For_Dictionaries.csv as an example.",
 	default = None
+)
+
+args.add_argument(
+	'--use_specified_transcript',
+	help="""Specify this option if you want to use the transcript version present
+	on the CCHMC gene home page. Keep in mind, if the version is not the newset
+	version of the transcript, the HGVS validation will not be possible.
+	If no version is specified on the CCHMC gene home page, the version present
+	in HGVS will be used. """,
+	action= 'store_true'
 )
 
 args = args.parse_args()
@@ -103,6 +112,14 @@ else:
 	unique_df = correct_chromosome_accessions[["Gene", "Chromosome_Accession"]].drop_duplicates()
 	gene_to_chr_accession_dict = dict(zip(list(unique_df["Gene"].values), list(unique_df["Chromosome_Accession"].values)))
 
+use_specified = args.use_specified_transcript
+if use_specified:
+	# If this is true, give a notice that some of the genes don't have a specified transcript so they will use whatever is present in HGVS
+	print("""\n\tYou have specified from the command line that you would like to use
+	the transcript version specified on the CCHMC gene home page. Some of the
+	transcripts do not have a specified version, so the version present in
+	HGVS will be used. If the transcript version specified is not in HGVS,
+	the package will likely be unable to normalize the variants.\n """)
 # These take quite some time to connect, so they have been moved below the parser arguements.
 hdp = hgvs.dataproviders.uta.connect()
 hp = hgvs.parser.Parser()
@@ -177,13 +194,23 @@ def web_scrape(disease_names, input_gene_lists):
 			# Some of the transcripts are using old versions. We need to find the current version. The only changes will be in the UTR, which may cause them to not find the location but it will not lead to erroneous normalization
 			transcript_seach = re.search(r"NM_\d+", transcript)
 			if transcript_seach != None:
-				transcript_parent = transcript_seach.group(0)
-				transcript_new = transcript_dictionary[transcript_parent]
-			##
+				if use_specified:
+					# If they specified to use the specified transcript, the new version should be the same as the old one
+					transcript_new = transcript
+				else:
+					transcript_parent = transcript_seach.group(0)
+					transcript_new = transcript_dictionary[transcript_parent]
+				if transcript_new != transcript:
+					warnings.warn('The transcript version '+transcript+' for gene '+gene+' was not present in HGVS. ')
+					warnings.warn('Transcript version '+transcript_new+' is being used in its place. Please double check that the update in transcript versions is compatible with the varaiant information. ')
+
 			## The ones that had no transcript listed on the home page only have one transcript
 			## so I am going to use the dictionary to look up the transcript for those ones
+			no_transcript_version = False
 			if transcript_new == "-":
 				transcript_new = gene_to_transcript_dict[gene]
+				if use_specified:
+					no_transcript_version = True
 
 			if chromosome in chr_accession_dict:
 				Chr_Accession = chr_accession_dict[chromosome]
@@ -209,6 +236,8 @@ def web_scrape(disease_names, input_gene_lists):
 				continue
 				# This should not happen because it should have happened with the first link if this were the case.
 			# Now get all of the links to the individual variants
+			if no_transcript_version:
+				print('Gene '+gene+' did not have a specified transcript. HGVS will use transcript '+transcript_new+' for variant normalization. ')
 			links = []
 			anchor_data = bs_format.select('a[class="data"]')
 			for anchor in anchor_data:
