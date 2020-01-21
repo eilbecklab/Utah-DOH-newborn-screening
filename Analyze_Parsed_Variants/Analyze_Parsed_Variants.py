@@ -544,9 +544,9 @@ for parser in counts_dictionary:
 counts_df.to_csv(counts_output)
 
 
-json_output = output_dir+'/'+output_prefix+'_testing_counts_dictionary.json'
-with open (json_output, 'w') as file:
-	json.dump(counts_dictionary, file, indent='\t')
+#####json_output = output_dir+'/'+output_prefix+'_testing_counts_dictionary.json'
+#####with open (json_output, 'w') as file:
+	#####json.dump(counts_dictionary, file, indent='\t')
 
 # Unless they specified not to save the bar charts, make bar charts with the number of variants of each type for each disease, database, parser
 def subset_df(df, specified_parser, specified_database, specified_disease):
@@ -583,17 +583,59 @@ if not no_bar_charts:
 	for parser in counts_dictionary:
 		for database in counts_dictionary[parser]:
 			for disease in counts_dictionary[parser][database]:
-				print(parser +', '+database+', '+disease)
 				tmp_df = counts_df.apply(subset_df, args=(parser, database, disease), axis = 1)
 				tmp_df = tmp_df[tmp_df['Present_Disease'] == True]
+				# If it has no counts, skip the plot
+				if tmp_df['Total Variants'].max() == 0:
+					print('\tThere are no variant counts for ')
+					print('\t\tParser: '+parser)
+					print('\t\tDatabase: '+ database)
+					print('\t\tDisease: '+disease)
+					print('\tThis plot will be skipped.')
+					continue
 				subset = tmp_df[tmp_df.columns[3:-3]].set_index('Gene')
-				subset = subset.astype(int)
+
 				f = plt.figure(figsize = (12,8))
 				plt.title(parser+' '+database+' '+disease)
 				plt.ylabel('Count')
 				subset.plot(kind="bar", stacked=True, ax = f.gca())
 				plt.legend().remove()
 				plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Bar_Chart.png')
+				# It is common that there is one gene that has far more variants than all of the other ones.
+				# Check to see if it is possible to make one with a split Y-axis.
+				# The bottom part will always be SNV, so you need to split it in the middle of that one.
+				highest_snv = subset['SNV'].max()
+				second_highest_total = np.sort(tmp_df['Total Variants'].values)[-2]
+				if second_highest_total == 0:
+					continue
+				if highest_snv > 2*second_highest_total:
+					# First find appropriate cutoffs for the axes
+					highest_value = tmp_df['Total Variants'].max()
+					upper_split = 0.97*highest_snv
+					lower_split = 1.05*second_highest_total
+					upper_limit = 1.02*highest_value
+					# Now plot it over two plots
+					fig, (ax1, ax2) = plt.subplots(2,1, sharex=True, figsize = (12,8))
+					ax1.spines['bottom'].set_visible(False)
+					ax1.tick_params(axis='x',which='both',bottom=False)
+					ax2.spines['top'].set_visible(False)
+					# Set the split using the numbers calculated above
+					ax2.set_ylim(0,lower_split)
+					ax1.set_ylim(upper_split,upper_limit)
+					subset.plot(ax=ax1,kind='bar', stacked = True)
+					subset.plot(ax=ax2,kind='bar', stacked = True)
+					plt.ylabel('Count')
+					# Add slashes on the axes to make it look clearer
+					d = .005
+					kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
+					ax1.plot((-d, +d), (-d, +d), **kwargs)
+					ax1.plot((1 - d, 1 + d), (-d, +d), **kwargs)
+					kwargs.update(transform=ax2.transAxes)
+					ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+					ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
+					ax1.legend().remove()
+					ax2.legend().remove()
+					plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Split_Y_Bar_Chart.png')
 
 
 
