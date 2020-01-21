@@ -10,7 +10,8 @@ import sys
 import pandas as pd
 import warnings
 import json
-import csv
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 args = ArgumentParser('./Analyze_Parsed_Variants.py', description="""This program has been
@@ -58,28 +59,6 @@ args.add_argument(
 )
 
 args.add_argument(
-	'--databases',
-	nargs='+',
-	help="""This is a list of the database names used in the config file for
-	LOVD3_Variant_Parser.py. This option should not be used in conjunction with
-	the --config_file option. If neither option is used, all subdirectories in
-	the directory specified with the --lovd3 option will be used. An example
-	input for this option would be -d BIPmed_SNPhg19 BIPmed_WES Global_Variome
-	Human_Variome MSeqDR-LSDB """,
-	default = None
-)
-
-args.add_argument(
-	'--config_file',
-	help="""This is the config file in JSON format that was used for the input
-	to LOVD3_Variant_Parser.py. For an example of formatting, see the file
-	LOVD3_Databases.json. This option should not be used in conjunction with the
-	--databases option. If neither option is used, all subdirectories in the
-	directory specified with the --lovd3 option will be used.""",
-	default=None,
-)
-
-args.add_argument(
 	'--disease_gene_lists',
 	nargs='+', # This tells the program that if they specify this flag, they have to give it at least one input. If they don't specify it, then the default will go in.
 	help="""Only use this option if you used the same gene lists for all parsers.
@@ -107,12 +86,41 @@ args.add_argument(
 )
 
 args.add_argument(
-	'--use_file_names',
-	help="""Specify this option if you have used the same gene lists for all
-	parsers and would like to use the names of the text files (without the final
-	extension) for the disease names. This is recommended only if you allowed the
-	parsers to determine the disease names based upon the lists provided. """,
-	action= 'store_true'
+	'-p',
+	'--output_prefix',
+	help="""This is the prefix that you would like to use for the output files.
+	Default is Parsed_Variants""",
+	default = "Parsed_Variants"
+)
+
+args.add_argument(
+	'-d',
+	'--output_directory',
+	help="""This is the directory where you would like to store the output files.
+	Default is the current working directory.""",
+	default = "./"
+)
+
+args.add_argument(
+	'--databases',
+	nargs='+',
+	help="""This is a list of the database names used in the config file for
+	LOVD3_Variant_Parser.py. This option should not be used in conjunction with
+	the --config_file option. If neither option is used, all subdirectories in
+	the directory specified with the --lovd3 option will be used. An example
+	input for this option would be -d BIPmed_SNPhg19 BIPmed_WES Global_Variome
+	Human_Variome MSeqDR-LSDB """,
+	default = None
+)
+
+args.add_argument(
+	'--config_file',
+	help="""This is the config file in JSON format that was used for the input
+	to LOVD3_Variant_Parser.py. For an example of formatting, see the file
+	LOVD3_Databases.json. This option should not be used in conjunction with the
+	--databases option. If neither option is used, all subdirectories in the
+	directory specified with the --lovd3 option will be used.""",
+	default=None,
 )
 
 args.add_argument(
@@ -152,6 +160,15 @@ args.add_argument(
 )
 
 args.add_argument(
+	'--use_file_names',
+	help="""Specify this option if you have used the same gene lists for all
+	parsers and would like to use the names of the text files (without the final
+	extension) for the disease names. This is recommended only if you allowed the
+	parsers to determine the disease names based upon the lists provided. """,
+	action= 'store_true'
+)
+
+args.add_argument(
 	'--include_no_stars',
 	help="""Specify this option if you would like to include the no-star variants
 	from ClinVar_Parser.py. By default, this program will ignore them.""",
@@ -168,28 +185,20 @@ args.add_argument(
 )
 
 args.add_argument(
-	'-p',
-	'--output_prefix',
-	help="""This is the prefix that you would like to use for the output files.
-	Default is Parsed_Variants""",
-	default = "Parsed_Variants"
-)
-
-args.add_argument(
-	'-d',
-	'--output_directory',
-	help="""This is the directory where you would like to store the output files.
-	Default is the current working directory.""",
-	default = "./"
-)
-
-args.add_argument(
 	'--save_dictionary',
 	help="""If this option is specified, then the program will save the dictionary
 	that contains the information about the parsers, databases, and diseases
 	specified in the input along with the path to each of the files associated
 	with the input information. It will be saved in a JSON file. By default, the
 	program will not save the dictionary.""",
+	action= 'store_true'
+)
+
+args.add_argument(
+	'--no_bar_charts',
+	help="""By default, the program will save bar charts representing the number of
+	variants of each type for each gene, database and parser. If this option is
+	specified, then the program will not save these figures.""",
 	action= 'store_true'
 )
 
@@ -266,6 +275,7 @@ output_prefix = args.output_prefix
 output_dir = args.output_directory
 
 save_dictionary = args.save_dictionary
+no_bar_charts = args.no_bar_charts
 
 os.makedirs(output_dir, exist_ok = True)
 # Now start building the dictionary with all of the path information
@@ -512,8 +522,7 @@ for index_tuple, var_count in zip(count_object.index, count_object):
 # each variant type into a csv file
 header_line = ["Parser", "Database", "Disease", "Gene", "SNV", "Deletion", "Duplication", "Insertion", "Indel", "Identity", "Inversion", "Total Variants"]
 counts_output = output_dir+'/'+output_prefix+'_variant_type_counts.csv'
-csv_writer = csv.writer(open(counts_output, 'w'))
-csv_writer.writerow(header_line)
+counts_df = pd.DataFrame(columns = header_line)
 for parser in counts_dictionary:
 	for databse in counts_dictionary[parser]:
 		for disease in counts_dictionary[parser][databse]:
@@ -527,7 +536,65 @@ for parser in counts_dictionary:
 				inversion = counts_dictionary[parser][databse][disease][gene]['Inversion']
 				total_var = snv + deletion + duplication + insertion + indel + identity + inversion
 				all_variables = [parser, databse, disease, gene, snv, deletion, duplication, insertion, indel, identity, inversion, total_var]
-				csv_writer.writerow(all_variables)
+				tmp_dict = {}
+				for variable, value in zip(header_line, all_variables):
+					tmp_dict[variable] = value
+				counts_df = counts_df.append(tmp_dict, ignore_index=True)
+
+counts_df.to_csv(counts_output)
+
+
+json_output = output_dir+'/'+output_prefix+'_testing_counts_dictionary.json'
+with open (json_output, 'w') as file:
+	json.dump(counts_dictionary, file, indent='\t')
+
+# Unless they specified not to save the bar charts, make bar charts with the number of variants of each type for each disease, database, parser
+def subset_df(df, specified_parser, specified_database, specified_disease):
+	parser = df['Parser']
+	db = df['Database']
+	disease = df['Disease']
+	output = False
+	if parser == specified_parser and db == specified_database and disease == specified_disease:
+		output = True
+	df['Present_Disease'] = output
+	return df
+
+if not no_bar_charts:
+	os.makedirs(output_dir+'/Variant_Count_Bar_Charts', exist_ok = True)
+	# First print out the legend so that it doesn't cover up the bars in the charts
+	# All will have the same legend because they all come from the same original DF
+	# Give it only 30 lines so that it runs faster
+	if len(counts_df) > 30:
+		legend_df = counts_df[counts_df.columns[3:-2]].head(30)
+	else:
+		legend_df = counts_df[counts_df.columns[3:-2]]
+	f, (ax1) = plt.subplots(1,1, sharex=True, figsize = (12,8)) # This is just to creat the object for extracting the legend
+	legend_df.plot(kind="bar", stacked=True, ax = f.gca())
+	figsize = (1.5, 1.5)
+	fig_leg = plt.figure(figsize=figsize)
+	ax_leg = fig_leg.add_subplot(111)
+	# add the legend from the previous axes
+	ax_leg.legend(*ax1.get_legend_handles_labels(), loc='center')
+	# hide the axes frame and the x/y labels
+	ax_leg.axis('off')
+	fig_leg.savefig(output_dir+'/Variant_Count_Bar_Charts/Legend.png')
+	# Now that the legend is saved, loop through each parser, database, and disease
+
+	for parser in counts_dictionary:
+		for database in counts_dictionary[parser]:
+			for disease in counts_dictionary[parser][database]:
+				print(parser +', '+database+', '+disease)
+				tmp_df = counts_df.apply(subset_df, args=(parser, database, disease), axis = 1)
+				tmp_df = tmp_df[tmp_df['Present_Disease'] == True]
+				subset = tmp_df[tmp_df.columns[3:-3]].set_index('Gene')
+				subset = subset.astype(int)
+				f = plt.figure(figsize = (12,8))
+				plt.title(parser+' '+database+' '+disease)
+				plt.ylabel('Count')
+				subset.plot(kind="bar", stacked=True, ax = f.gca())
+				plt.legend().remove()
+				plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Bar_Chart.png')
+
 
 
 # Now make a dataframe with the variants that changed after the HGVS normalization
