@@ -226,7 +226,7 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 				Individual_Variant_List = ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Pathogenicity, Disease, Genetic_Origin,
 											Inheritance_Pattern, Affected_Genes, Gene_Symbol, Compound_Het,"-", "-", "-", "-", "-",
 											"-", "-", "-", "-", "-", "ClinVar", RCV_num, Review_Status, Star_Level, Submitter,
-											Edited_Date, "-", "-", "No Variant Information Present"]
+											Edited_Date, "-", "-", "-", "No Variant Information Present"]
 				if num_disease_genes == 1:
 					# Append to dictionary for individual gene
 					combined_diseases_dictionary[disease][Gene_Symbol]['Invalid'].append(Individual_Variant_List)
@@ -236,9 +236,9 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 
 			if not found_disease:
 				Individual_Variant_List = ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Pathogenicity, Disease, Genetic_Origin,
-											Inheritance_Pattern, Affected_Genes, Gene_Symbol, Compound_Het,"-", "-", "-", "-", "-",
+											Inheritance_Pattern, Affected_Genes, Gene_Symbol, "-", Compound_Het,"-", "-", "-", "-", "-",
 											"-", "-", "-", "-", "-", "ClinVar", RCV_num, Review_Status, Star_Level, Submitter,
-											Edited_Date, "-", "-", "No Variant Information Present"]
+											Edited_Date, "-", "No Variant Information Present"]
 				not_annotated_variants.append(Individual_Variant_List)
 				print(RCV_num+" contains at least one variant that did not have any genes listed that were associated with any of the diseases in the input. The information associated with this variant will be stored to "+output_directory+"/Not_Annotated_Variants.csv")
 				print("Please check this variant on the ClinVar website: https://www.ncbi.nlm.nih.gov/clinvar/ ")
@@ -275,12 +275,19 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 			transcript_error = "-"
 			genomic_error = "-"
 			failure_reason = "-"
+			dbSNP = "-"
 
 			Var_Type = child.get('Type', '-')
 
 			for grandchild in child.findall('MeasureRelationship/Symbol/ElementValue'):
 				Affected_genes_list.append(grandchild.text)
 			Affected_Genes = ', '.join(Affected_genes_list) # This says to separate them by a comma and a space
+
+			for grandchild in child.findall('XRef'):
+				if grandchild.get('DB', '-') == "dbSNP":
+					dbSNP_id = grandchild.get("ID", "-")
+					if dbSNP_id != "-":
+						dbSNP = "rs"+dbSNP_id
 
 			for grandchild in child.findall('Name/ElementValue[@Type="Preferred"]'): # Again, always comes back with something, just sometimes a blank list
 				# There should only be one "Preferred" term per variant listed, so I shouldn't have to reset this.
@@ -676,7 +683,7 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 						variant_category = "No_Stars"
 				Individual_Variant_List = [Assembly, Chromosome, Position_g_start, Position_g_stop, Ref_allele,
 											Alt_allele, Genomic_annotation, Genomic_Normalized, Var_Type, Var_Length, Pathogenicity,
-											Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol,
+											Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol, dbSNP,
 											Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
 											Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
 											"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
@@ -711,7 +718,7 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 
 					Individual_Variant_List = [Assembly, Chromosome, Position_g_start, Position_g_stop, Ref_allele,
 												Alt_allele, Genomic_annotation, Genomic_Normalized, Var_Type, Var_Length, Pathogenicity,
-												Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol,
+												Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol, dbSNP,
 												Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
 												Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
 												"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
@@ -736,7 +743,7 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 	column_labels = ["Genome Assembly", "Chr", "Position Start", "Position Stop", "Ref", "Alt",
 						"Genomic Annotation", "HGVS Normalized Genomic Annotation", "Variant Type",
 						"Variant Length", "Pathogenicity", "Disease", "Genetic Origin", "Inheritance Pattern",
-						"Affected Genes" , "Gene Symbol", "Compound Het Status", "Transcript",
+						"Affected Genes" , "Gene Symbol", "dbSNP ID", "Compound Het Status", "Transcript",
 						"Transcript Notation", "HGVS Transcript Notation","Protein Accession",
 						"Protein Notation", "HGVS Protein Annotation", "Chr Accession", "VCF Pos",
 						"VCF Ref", "VCF Alt", "Database", "ClinVar Accession", "Review Status",
@@ -745,7 +752,7 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 	column_labels_invalid = ["Genome Assembly", "Chr", "Position Start", "Position Stop", "Ref", "Alt",
 						"Genomic Annotation", "HGVS Normalized Genomic Annotation", "Variant Type",
 						"Variant Length", "Pathogenicity", "Disease", "Genetic Origin", "Inheritance Pattern",
-						"Affected Genes" , "Gene Symbol", "Compound Het Status", "Transcript",
+						"Affected Genes" , "Gene Symbol", "dbSNP ID", "Compound Het Status", "Transcript",
 						"Transcript Notation", "HGVS Transcript Notation","Protein Accession",
 						"Protein Notation", "HGVS Protein Annotation", "Chr Accession", "VCF Pos",
 						"VCF Ref", "VCF Alt", "Database", "ClinVar Accession", "Review Status",
