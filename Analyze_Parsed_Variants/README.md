@@ -17,10 +17,10 @@ you have used different disease gene lists for some of those parsers. Due to
 multiple options starting with the same letter, many of the options for this
 program do not have a short option.
 
-Example usage: python Analyze_Parsed_Variants.py -c Output/ClinVar -2
-Output/CCHMC -3 LOVD3 --config_file LOVD3_Databases.json --disease_gene_lists
-SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID
-Metabolic_Diseases --include_no_stars -p Parsed -d All_Parsed
+Example usage:
+```
+python Analyze_Parsed_Variants.py -c Output/ClinVar -2 Output/CCHMC -3 LOVD3 --config_file LOVD3_Databases.json --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases --include_no_stars -p Parsed -d All_Parsed
+```
 
 Optional Arguments:
 
