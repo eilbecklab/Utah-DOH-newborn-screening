@@ -630,6 +630,10 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 						failure_reason = "Unknown breakpoint"
 					elif ")_(" in genomic_error:
 						failure_reason = "Compound variant"
+					elif "No alignments for" in genomic_error:
+						failure_reason = "Chromosone Accession not in HGVS"
+					elif "insertion length must be 1" in genomic_error:
+						failure_reason = "Insertion not between two bases"
 					else:
 						failure_reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
 				else:
@@ -650,6 +654,8 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 						failure_reason = "Unknown breakpoint"
 					elif ")_(" in transcript_error:
 						failure_reason = "Compound variant"
+					elif "No alignments for" in transcript_error:
+						failure_reason = "Transcript Accession not in HGVS"
 					else:
 						failure_reason = "No definitive failure reason detected, likely compound variant with nontraditional formatting"
 
