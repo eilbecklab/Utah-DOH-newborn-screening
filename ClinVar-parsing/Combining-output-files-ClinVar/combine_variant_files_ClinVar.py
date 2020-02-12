@@ -22,7 +22,6 @@ args.add_argument(
 
 args.add_argument(
 	'--output_directory',
-	nargs='+',
 	help="This is where your output file will be stored. If this option is not used, the directory specified in --ClinVar_directory will be used.",
 	default = None
 )
@@ -46,7 +45,7 @@ if not disease_names:
 columns_Invalid = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 'Ref', 'Alt',
 			'Genomic Annotation', 'HGVS Normalized Genomic Annotation', 'Variant Type',
 			'Variant Length', 'Pathogenicity', 'Disease', 'Genetic Origin', 'Inheritance Pattern',
-			'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
+			'Affected Genes', 'Gene Symbol', 'dbSNP ID', 'Compound Het Status', 'Transcript',
 			'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
 			'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
 			'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
@@ -66,7 +65,7 @@ merged_invalid.to_csv(output_directory+"/ClinVar_All_Invalid_HGVS_Annotations.cs
 columns_valid = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 'Ref', 'Alt',
 			'Genomic Annotation', 'HGVS Normalized Genomic Annotation', 'Variant Type',
 			'Variant Length', 'Pathogenicity', 'Disease', 'Genetic Origin', 'Inheritance Pattern',
-			'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
+			'Affected Genes', 'Gene Symbol', 'dbSNP ID', 'Compound Het Status', 'Transcript',
 			'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
 			'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
 			'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
