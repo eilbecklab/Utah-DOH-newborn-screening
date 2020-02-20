@@ -703,7 +703,6 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 				elif Gene_Symbol in gene_list:
 					saved_to_dictionary = True
 					combined_diseases_dictionary[disease][Gene_Symbol][variant_category].append(Individual_Variant_List)
-
 			if saved_to_dictionary == False:
 				# This means the variant wasn't saved anywhere
 				# These are probably large copy number variants where the "preferred" variant gene was not one in the input disease lists
@@ -721,14 +720,23 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 						Gene_Symbol = ', '.join(genes_from_diseases_list)
 						multi_gene = True
 					# If num_disease_genes == 0, then just leave it alone
-
-					Individual_Variant_List = [Assembly, Chromosome, Position_g_start, Position_g_stop, Ref_allele,
-												Alt_allele, Genomic_annotation, Genomic_Normalized, Var_Type, Var_Length, Pathogenicity,
-												Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol, dbSNP,
-												Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
-												Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
-												"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
-												transcript_error, genomic_error]
+					# The gene symbol has changed at this point. If Because this is saved in list format, it is easiest to remake the list rather than replace just the gene symbol
+					if Genomic_Normalized == "-":
+						Individual_Variant_List = [Assembly, Chromosome, Position_g_start, Position_g_stop, Ref_allele,
+													Alt_allele, Genomic_annotation, Genomic_Normalized, Var_Type, Var_Length, Pathogenicity,
+													Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol, dbSNP,
+													Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
+													Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
+													"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
+													transcript_error, genomic_error, failure_reason]
+					else:
+						Individual_Variant_List = [Assembly, Chromosome, Position_g_start, Position_g_stop, Ref_allele,
+													Alt_allele, Genomic_annotation, Genomic_Normalized, Var_Type, Var_Length, Pathogenicity,
+													Disease, Genetic_Origin, Inheritance_Pattern, Affected_Genes, Gene_Symbol, dbSNP,
+													Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
+													Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
+													"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
+													transcript_error, genomic_error]
 
 					if multi_gene == True:
 						saved_to_dictionary = True
