@@ -386,7 +386,7 @@ ClinVar_Columns = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 
 					'Alt', 'Genomic Annotation', 'HGVS Normalized Genomic Annotation',
 					'Variant Type', 'Variant Length', 'Pathogenicity', 'Disease',
 					'Genetic Origin', 'Inheritance Pattern', 'Affected Genes',
-					'Gene Symbol', 'Compound Het Status', 'Transcript',
+					'Gene Symbol', 'dbSNP ID', 'Compound Het Status', 'Transcript',
 					'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
 					'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession',
 					'VCF Pos', 'VCF Ref', 'VCF Alt', 'Database', 'ClinVar Accession',
@@ -405,7 +405,6 @@ for parser in info_dict:
 combined_variants_df = combined_variants_df.drop_duplicates()
 combined_variants_output = output_dir+'/'+output_prefix+'_combined_variants.csv'
 combined_variants_df.to_csv(combined_variants_output)
-
 # Further analysis (particularly counting the number of variants of each type)
 # will exclude the ones from ClinVar that have multiple genes for the same variant
 # Those ones will be saved in a separate file for easy access
@@ -422,13 +421,16 @@ if clinvar_directory:
 
 	combined_variants_multigene = combined_variants_df.apply(find_multi_gene, axis = 1)
 	multi_gene_df = combined_variants_multigene[combined_variants_multigene['Multiple Genes'] == True]
-	########### What if the length is 0?
-	multi_gene_output = output_dir+'/'+output_prefix+'_ClinVar_MultiGene_Variants.csv'
-	multi_gene_df.to_csv(multi_gene_output)
+	multi_gene_df = multi_gene_df[multi_gene_df.columns[:-1]]
+	if len(multi_gene_df) > 0:
+		multi_gene_output = output_dir+'/'+output_prefix+'_ClinVar_MultiGene_Variants.csv'
+		multi_gene_df.to_csv(multi_gene_output)
 
 
 # Now for obtaining the counts of each variant type
+
 count_object = combined_variants_df.groupby(['Database', 'Gene Symbol', 'Variant Type']).size()
+################### How do I drop the ones that have multiple things per the same variant, like in MSeqDR
 # This is a pandas series object, but does not contain 0 for anything that is missing
 # To obtain those 0 values, I need to make a dictionary that
 # To account for the ones that have 0, first build a dictionary containing all
