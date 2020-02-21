@@ -12,6 +12,7 @@ import warnings
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import re
 
 
 args = ArgumentParser('./Analyze_Parsed_Variants.py', description="""This program has been
@@ -428,9 +429,9 @@ if clinvar_directory:
 
 
 # Now for obtaining the counts of each variant type
-
-count_object = combined_variants_df.groupby(['Database', 'Gene Symbol', 'Variant Type']).size()
-################### How do I drop the ones that have multiple things per the same variant, like in MSeqDR
+rmdup_variants_df = combined_variants_df[['HGVS Normalized Genomic Annotation', 'Variant Type', 'Database', 'Gene Symbol']]
+rmdup_variants_df = rmdup_variants_df.drop_duplicates()
+count_object = rmdup_variants_df.groupby(['Database', 'Gene Symbol', 'Variant Type']).size()
 # This is a pandas series object, but does not contain 0 for anything that is missing
 # To obtain those 0 values, I need to make a dictionary that
 # To account for the ones that have 0, first build a dictionary containing all
@@ -534,7 +535,11 @@ for parser in counts_dictionary:
 				duplication = counts_dictionary[parser][databse][disease][gene]['Duplication']
 				insertion = counts_dictionary[parser][databse][disease][gene]['Insertion']
 				indel = counts_dictionary[parser][databse][disease][gene]['Indel']
-				identity = counts_dictionary[parser][databse][disease][gene]['identity']
+				# Some of the identity ones have a capital I, others do not
+				for key in counts_dictionary[parser][databse][disease][gene].keys():
+					search_object = re.search(r"[I|i]dentity", key)
+					if search_object:
+						identity = counts_dictionary[parser][databse][disease][gene][search_object[0]]
 				inversion = counts_dictionary[parser][databse][disease][gene]['Inversion']
 				total_var = snv + deletion + duplication + insertion + indel + identity + inversion
 				all_variables = [parser, databse, disease, gene, snv, deletion, duplication, insertion, indel, identity, inversion, total_var]
@@ -545,10 +550,6 @@ for parser in counts_dictionary:
 
 counts_df.to_csv(counts_output)
 
-
-#####json_output = output_dir+'/'+output_prefix+'_testing_counts_dictionary.json'
-#####with open (json_output, 'w') as file:
-	#####json.dump(counts_dictionary, file, indent='\t')
 
 # Unless they specified not to save the bar charts, make bar charts with the number of variants of each type for each disease, database, parser
 def subset_df(df, specified_parser, specified_database, specified_disease):
