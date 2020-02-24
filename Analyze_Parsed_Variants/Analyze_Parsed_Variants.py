@@ -431,6 +431,32 @@ if clinvar_directory:
 # Now for obtaining the counts of each variant type
 rmdup_variants_df = combined_variants_df[['HGVS Normalized Genomic Annotation', 'Variant Type', 'Database', 'Gene Symbol']]
 rmdup_variants_df = rmdup_variants_df.drop_duplicates()
+# To deal with variants that affect multiple genes, I am going to add the variants with each individual gene.
+multi_gene = rmdup_variants_df[rmdup_variants_df["Gene Symbol"].str.contains(", ")]
+HGVS_list = []
+Type_list = []
+DB_List = []
+Gene_List = []
+for index, row in multi_gene.iterrows():
+	HGVS = row['HGVS Normalized Genomic Annotation']
+	var_type = row['Variant Type']
+	gene_variable = row['Gene Symbol']
+	database = row['Database']
+	gene_list = gene_variable.split(', ')
+	for gene in gene_list:
+		HGVS_list.append(HGVS)
+		Type_list.append(var_type)
+		DB_List.append(database)
+		Gene_List.append(gene)
+
+split_multi_gene_df = pd.DataFrame({'HGVS Normalized Genomic Annotation': HGVS_list,
+									'Variant Type': Type_list,
+									'Database': DB_List,
+									'Gene Symbol': Gene_List})
+
+rmdup_variants_df = rmdup_variants_df.append(split_multi_gene_df, ignore_index=True)
+rmdup_variants_df = rmdup_variants_df[~rmdup_variants_df["Gene Symbol"].str.contains(", ")]
+# Now the variants that have multiple genes will be represented for each gene
 count_object = rmdup_variants_df.groupby(['Database', 'Gene Symbol', 'Variant Type']).size()
 # This is a pandas series object, but does not contain 0 for anything that is missing
 # To obtain those 0 values, I need to make a dictionary that
@@ -512,14 +538,13 @@ for parser in counts_dictionary:
 # Now populate the counts_dictionary
 for index_tuple, var_count in zip(count_object.index, count_object):
 	gene = index_tuple[1]
-	if ', ' in gene:
-		continue # The dictionary will not populate with commas in the gene name
 	database = index_tuple[0]
 	var_type = index_tuple[2]
 	parser = db_parser_dict[database]
 	diseases_list = gene_disease_dict[gene]
 	for disease in diseases_list:
 		counts_dictionary[parser][database][disease][gene][var_type] = var_count
+
 
 # Now run through each parser, database, disease, and gene and record the counts of
 # each variant type into a csv file
@@ -640,7 +665,13 @@ if not no_bar_charts:
 					ax2.legend().remove()
 					plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Split_Y_Bar_Chart.png')
 
+####################
+####################
+# Now to look for the overlap between LOVD and ClinVar
+# I have already made a dataframe with the duplicates filtered out, so now I just need to get the counts of overlap
 
+####################
+####################
 
 # Now make a dataframe with the variants that changed after the HGVS normalization
 def label_hgvs_changed(df):
