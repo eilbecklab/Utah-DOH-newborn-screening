@@ -29,7 +29,6 @@ args.add_argument(
 
 args.add_argument(
 	'--output_directory',
-	nargs='+',
 	help="This is where your output file will be stored. If this option is not used, the directory specified in --LOVD3_directory will be used.",
 	default = None
 )
