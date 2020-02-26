@@ -240,13 +240,15 @@ if lovd3_config:
 
 global_disease_names = args.disease_names
 use_file_names = args.use_file_names
-
 provided_gene_lists = args.disease_gene_lists
 input_gene_lists = None
 if provided_gene_lists:
 	input_gene_lists = []
 	for text_file in provided_gene_lists:
-		input_gene_lists.append([line.rstrip('\n') for line in open(text_file)])
+		invidual_disease_gene_list = [line.rstrip('\n') for line in open(text_file)]
+		if '' in invidual_disease_gene_list:
+			invidual_disease_gene_list.remove('') # This happens when they have extra lines at the end of the text file
+		input_gene_lists.append(invidual_disease_gene_list)
 	# If they did not specify global disease names but they said to use the file names, then obtain those
 	if not global_disease_names:
 		if use_file_names:
@@ -474,7 +476,10 @@ for parser in info_dict:
 		for disease in info_dict[parser][database]:
 			disease_gene_list = []
 			for file in info_dict[parser][database][disease]:
-				disease_gene_list.append(file.split('/')[-1].split('_')[0])
+				gene_name = file.split('/')[-1].split('_')[0]
+				# ClinVar will have some genes twice if the no_stars files are inlcuded
+				if gene_name not in disease_gene_list and "Multiple" not in gene_name:
+					disease_gene_list.append(gene_name)
 			# Database names should be unique, so we don't need the parser here
 			if database not in gene_lists_dict:
 				gene_lists_dict[database] = {}
@@ -629,6 +634,7 @@ if not no_bar_charts:
 				subset.plot(kind="bar", stacked=True, ax = f.gca())
 				plt.legend().remove()
 				plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Bar_Chart.png')
+				#plt.close('all') # This has not worked 
 				# It is common that there is one gene that has far more variants than all of the other ones.
 				# Check to see if it is possible to make one with a split Y-axis.
 				# The bottom part will always be SNV, so you need to split it in the middle of that one.
@@ -665,10 +671,153 @@ if not no_bar_charts:
 					ax2.legend().remove()
 					plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Split_Y_Bar_Chart.png')
 
+
 ####################
 ####################
+
 # Now to look for the overlap between LOVD and ClinVar
 # I have already made a dataframe with the duplicates filtered out, so now I just need to get the counts of overlap
+if clinvar_directory and (lovd2_directory or lovd3_directory):
+
+	clinvar_unique = rmdup_variants_df[rmdup_variants_df["Database"] == "ClinVar"]
+	lovd_unique = rmdup_variants_df[rmdup_variants_df["Database"] != "ClinVar"]
+	# Check the input_gene_lists and global_disease_names to make sure they are present. If not, create them.
+	if not input_gene_lists:
+		input_gene_lists = []
+		if not global_disease_names:
+			clinvar_disease_names = []
+			lovd_disease_names = []
+			global_disease_names = []
+			for disease in gene_lists_dict["ClinVar"]:
+				clinvar_disease_names.append(disease)
+			for parser in gene_lists_dict:
+				if parser != "ClinVar":
+					for disease in gene_lists_dict[parser]:
+						if disease not in lovd_disease_names:
+							lovd_disease_names.append(disease)
+			for disease in clinvar_disease_names:
+				if disease in lovd_disease_names:
+					global_disease_names.append(disease)
+		# The global_disease_names list has now been built if it was not present to begin with
+		for disease in global_disease_names:
+			genes_list = gene_lists_dict["ClinVar"][disease]
+			for parser in gene_lists_dict:
+				if parser != "ClinVar":
+					tmp_gene_list = gene_lists_dict[parser][disease]
+					for gene in tmp_gene_list:
+						if gene not in genes_list:
+							genes_list.append(gene) # This will add any genes that were not in ClinVar, but present for the disease in the other databases
+			input_gene_lists.append(genes_list)
+	for gene_list, disease in zip(input_gene_lists, global_disease_names):
+		os.makedirs(output_dir+'/Comparison_LOVD_Clinvar/'+disease, exist_ok = True)
+		clinvar_only_counts = []
+		lovd_only_counts = []
+		overlap_counts = []
+		clinvar_only_percentages = []
+		lovd_only_percentages = []
+		overlap_percentages = []
+		disease_overlap_df = pd.DataFrame(columns = combined_variants_df.columns)
+		disease_clinvar_df = pd.DataFrame(columns = combined_variants_df.columns)
+		disease_lovd_df = pd.DataFrame(columns = combined_variants_df.columns)
+		# don't need to recreate gene_list because it will go in order
+		for gene in gene_list:
+			if gene == '':
+				continue # If they have left a blank line in the gene list file, this can happen
+			clinvar_only = []
+			lovd_only = []
+			overlap = []
+			clinvar_variants = clinvar_unique[clinvar_unique["Gene Symbol"] == gene]["HGVS Normalized Genomic Annotation"].values
+			lovd_variants = lovd_unique[lovd_unique["Gene Symbol"] == gene][['HGVS Normalized Genomic Annotation']].drop_duplicates().values
+			for variant in clinvar_variants:
+				if variant in lovd_variants:
+					overlap.append(variant)
+				else:
+					clinvar_only.append(variant)
+			for variant in lovd_variants:
+				if variant not in overlap:
+					lovd_only.append(variant)
+			clinvar_len = len(clinvar_only)
+			lovd_len = len(lovd_only)
+			overlap_len = len(overlap)
+			total_counts = clinvar_len+lovd_len+overlap_len
+			clinvar_only_counts.append(clinvar_len)
+			lovd_only_counts.append(lovd_len)
+			overlap_counts.append(overlap_len)
+
+			if total_counts > 0: # can't calculate percentages if 0 variants
+				clinvar_percent = clinvar_len/total_counts
+				lovd_percent = lovd_len/total_counts
+				overlap_percent = overlap_len/total_counts
+				clinvar_only_percentages.append(clinvar_percent)
+				lovd_only_percentages.append(lovd_percent)
+				overlap_percentages.append(overlap_percent)
+			else:
+				clinvar_only_percentages.append(0)
+				lovd_only_percentages.append(0)
+				overlap_percentages.append(0)
+
+			if len(overlap) > 0:
+				gene_overlap_df = combined_variants_df[combined_variants_df['HGVS Normalized Genomic Annotation'].isin(overlap)].sort_values(by='HGVS Normalized Genomic Annotation')
+				gene_overlap_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'/'+gene+'_LOVD_ClinVar_Overlap_Variants.csv')
+				disease_overlap_df = pd.concat([disease_overlap_df, gene_overlap_df]).reset_index(drop=True)
+			if len(clinvar_only) > 0:
+				gene_clinvar_only_df = combined_variants_df[combined_variants_df['HGVS Normalized Genomic Annotation'].isin(clinvar_only)].sort_values(by='HGVS Normalized Genomic Annotation')
+				gene_clinvar_only_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'/'+gene+'_ClinVar_Only_Variants.csv')
+				disease_clinvar_df = pd.concat([disease_clinvar_df, gene_clinvar_only_df]).reset_index(drop=True)
+			if len(lovd_only) > 0:
+				gene_lovd_df = combined_variants_df[combined_variants_df['HGVS Normalized Genomic Annotation'].isin(lovd_only)].sort_values(by='HGVS Normalized Genomic Annotation')
+				gene_lovd_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'/'+gene+'_LOVD_Only_Variants.csv')
+				disease_lovd_df = pd.concat([disease_lovd_df, gene_lovd_df]).reset_index(drop=True)
+		# Now save the combined dataframes
+		disease_overlap_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'/'+disease+'_all_genes_LOVD_ClinVar_Overlap_Variants.csv')
+		disease_clinvar_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'/'+disease+'_all_genes_ClinVar_Only_Variants.csv')
+		disease_lovd_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'/'+disease+'_all_genes_LOVD_Only_Variants.csv')
+		# Now make a dataframe out of the counts and save the file as a csv
+		comparison_counts_df = pd.DataFrame({'Gene':gene_list,
+											'ClinVar Only': clinvar_only_counts,
+											'Overlap': overlap_counts,
+											'LOVD Only': lovd_only_counts}).set_index('Gene')
+		comparison_counts_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_LOVD_ClinVar_Overlap_Counts.csv')
+		comparison_percent_df = pd.DataFrame({'Gene':gene_list,
+											'ClinVar Only': clinvar_only_percentages,
+											'Overlap': overlap_percentages,
+											'LOVD Only': lovd_only_percentages}).set_index('Gene')
+		comparison_percent_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_LOVD_ClinVar_Overlap_Percentages.csv')
+		# now save the dataframe with the variants in each group
+		# and append the counts (lenghts) to lists
+		# Print the legend
+		if "Legend.png" not in os.listdir(output_dir+'/Comparison_LOVD_Clinvar/'): # Only generate the legend once
+			f, (ax1) = plt.subplots(1,1, sharex=True) # This is just to creat the object for extracting the legend
+			comparison_counts_df.plot(kind="bar", stacked=True, ax = f.gca())
+			figsize = (1.5, 1.5)
+			fig_leg = plt.figure(figsize=figsize)
+			ax_leg = fig_leg.add_subplot(111)
+			# add the legend from the previous axes
+			ax_leg.legend(*ax1.get_legend_handles_labels(), loc='center')
+			# hide the axes frame and the x/y labels
+			ax_leg.axis('off')
+			fig_leg.savefig(output_dir+'/Comparison_LOVD_Clinvar/Legend.png')
+
+		f = plt.figure(figsize = (12,8))
+		plt.title(disease+ ' Variant Overlap between ClinVar and LOVD' )
+		plt.ylabel('Count')
+		comparison_counts_df.plot(kind="bar", stacked=True, ax = f.gca())
+		plt.legend().remove()
+		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Bar_Chart.png')
+
+		f = plt.figure(figsize = (12,8))
+		plt.title(disease+' Variant Overlap between ClinVar and LOVD')
+		plt.ylabel('Count')
+		comparison_percent_df.plot(kind="bar", stacked=True, ax = f.gca())
+		plt.legend().remove()
+		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Percentages_Bar_Chart.png')
+
+
+
+
+
+
+
 
 ####################
 ####################
