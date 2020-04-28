@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
+plt.rcParams.update({'figure.max_open_warning': 0})
 
 args = ArgumentParser('./Analyze_Parsed_Variants.py', description="""This program has been
 designed to gather information about the variants that have been parsed with the
@@ -620,6 +621,7 @@ if not no_bar_charts:
 				tmp_df = tmp_df[tmp_df['Present_Disease'] == True]
 				# If it has no counts, skip the plot
 				if tmp_df['Total Variants'].max() == 0:
+					print()
 					print('\tThere are no variant counts for ')
 					print('\t\tParser: '+parser)
 					print('\t\tDatabase: '+ database)
@@ -628,13 +630,13 @@ if not no_bar_charts:
 					continue
 				subset = tmp_df[tmp_df.columns[3:-3]].set_index('Gene')
 
-				f = plt.figure(figsize = (12,8))
+				f = plt.figure(figsize = (12,9))
 				plt.title(parser+' '+database+' '+disease)
-				plt.ylabel('Count')
+				plt.ylabel('Variant Count')
 				subset.plot(kind="bar", stacked=True, ax = f.gca())
 				plt.legend().remove()
 				plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Bar_Chart.png')
-				#plt.close('all') # This has not worked 
+				plt.close('all') 
 				# It is common that there is one gene that has far more variants than all of the other ones.
 				# Check to see if it is possible to make one with a split Y-axis.
 				# The bottom part will always be SNV, so you need to split it in the middle of that one.
@@ -649,7 +651,7 @@ if not no_bar_charts:
 					lower_split = 1.05*second_highest_total
 					upper_limit = 1.02*highest_value
 					# Now plot it over two plots
-					fig, (ax1, ax2) = plt.subplots(2,1, sharex=True, figsize = (12,8))
+					fig, (ax1, ax2) = plt.subplots(2,1, sharex=True, figsize = (12,9))
 					ax1.spines['bottom'].set_visible(False)
 					ax1.tick_params(axis='x',which='both',bottom=False)
 					ax2.spines['top'].set_visible(False)
@@ -658,7 +660,7 @@ if not no_bar_charts:
 					ax1.set_ylim(upper_split,upper_limit)
 					subset.plot(ax=ax1,kind='bar', stacked = True)
 					subset.plot(ax=ax2,kind='bar', stacked = True)
-					plt.ylabel('Count')
+					plt.ylabel('Variant Count')
 					# Add slashes on the axes to make it look clearer
 					d = .005
 					kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
@@ -798,16 +800,16 @@ if clinvar_directory and (lovd2_directory or lovd3_directory):
 			ax_leg.axis('off')
 			fig_leg.savefig(output_dir+'/Comparison_LOVD_Clinvar/Legend.png')
 
-		f = plt.figure(figsize = (12,8))
+		f = plt.figure(figsize = (12,9))
 		plt.title(disease+ ' Variant Overlap between ClinVar and LOVD' )
-		plt.ylabel('Count')
+		plt.ylabel('Variant Count')
 		comparison_counts_df.plot(kind="bar", stacked=True, ax = f.gca())
 		plt.legend().remove()
 		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Bar_Chart.png')
 
-		f = plt.figure(figsize = (12,8))
+		f = plt.figure(figsize = (12,9))
 		plt.title(disease+' Variant Overlap between ClinVar and LOVD')
-		plt.ylabel('Count')
+		plt.ylabel('Percentage of Variants')
 		comparison_percent_df.plot(kind="bar", stacked=True, ax = f.gca())
 		plt.legend().remove()
 		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Percentages_Bar_Chart.png')
