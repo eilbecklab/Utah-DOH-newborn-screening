@@ -405,6 +405,16 @@ for parser in info_dict:
 				tmp_df = pd.read_csv(file, index_col = 0)
 				combined_variants_df = pd.concat([combined_variants_df, tmp_df[ClinVar_Columns]]).reset_index(drop=True)
 
+# For some reason Biocommons HGVS normalization uses "identity" in some places and "Identity" in others, so case sensitvity can be a problem
+# The most common is lower case, so I am going to change all "Identity" to "identity"
+def fix_case_identity(df):
+	var_type = df['Variant Type']
+	if var_type == 'Identity':
+		var_type = "identity"
+	df['Variant Type'] = var_type
+	return df
+
+combined_variants_df = combined_variants_df.apply(fix_case_identity, axis = 1)
 # Sometimes one gene is in multiple diseases, which would result in multiple entries here. Drop the duplicates to clean this up.
 combined_variants_df = combined_variants_df.drop_duplicates()
 combined_variants_output = output_dir+'/'+output_prefix+'_combined_variants.csv'
@@ -566,11 +576,7 @@ for parser in counts_dictionary:
 				duplication = counts_dictionary[parser][databse][disease][gene]['Duplication']
 				insertion = counts_dictionary[parser][databse][disease][gene]['Insertion']
 				indel = counts_dictionary[parser][databse][disease][gene]['Indel']
-				# Some of the identity ones have a capital I, others do not
-				for key in counts_dictionary[parser][databse][disease][gene].keys():
-					search_object = re.search(r"[I|i]dentity", key)
-					if search_object:
-						identity = counts_dictionary[parser][databse][disease][gene][search_object[0]]
+				identity = counts_dictionary[parser][databse][disease][gene]['identity']
 				inversion = counts_dictionary[parser][databse][disease][gene]['Inversion']
 				total_var = snv + deletion + duplication + insertion + indel + identity + inversion
 				all_variables = [parser, databse, disease, gene, snv, deletion, duplication, insertion, indel, identity, inversion, total_var]
@@ -636,7 +642,7 @@ if not no_bar_charts:
 				subset.plot(kind="bar", stacked=True, ax = f.gca())
 				plt.legend().remove()
 				plt.savefig(output_dir+'/Variant_Count_Bar_Charts/'+database+'_'+disease+'_Variant_Counts_Bar_Chart.png')
-				plt.close('all') 
+				plt.close('all')
 				# It is common that there is one gene that has far more variants than all of the other ones.
 				# Check to see if it is possible to make one with a split Y-axis.
 				# The bottom part will always be SNV, so you need to split it in the middle of that one.
@@ -809,11 +815,16 @@ if clinvar_directory and (lovd2_directory or lovd3_directory):
 
 		f = plt.figure(figsize = (12,9))
 		plt.title(disease+' Variant Overlap between ClinVar and LOVD')
-		plt.ylabel('Percentage of Variants')
+		plt.ylabel('Proportion of Variants')
 		comparison_percent_df.plot(kind="bar", stacked=True, ax = f.gca())
 		plt.legend().remove()
 		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Percentages_Bar_Chart.png')
 
+		## Now get the variant type counts per disease and per gene.
+		#clinvar_unique = rmdup_variants_df[rmdup_variants_df["Database"] == "ClinVar"]
+		#lovd_unique = rmdup_variants_df[rmdup_variants_df["Database"] != "ClinVar"]
+		lovd_within_disease = lovd_unique[lovd_unique["Gene Symbol"].isin(gene_list)]
+		clinvar_within_disease = clinvar_unique[clinvar_unique["Gene Symbol"].isin(gene_list)]
 
 
 
