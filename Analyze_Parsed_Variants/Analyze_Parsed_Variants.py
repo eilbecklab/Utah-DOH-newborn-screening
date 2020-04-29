@@ -818,13 +818,67 @@ if clinvar_directory and (lovd2_directory or lovd3_directory):
 		plt.ylabel('Proportion of Variants')
 		comparison_percent_df.plot(kind="bar", stacked=True, ax = f.gca())
 		plt.legend().remove()
-		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Percentages_Bar_Chart.png')
+		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Comparison_Proportion_Bar_Chart.png')
 
 		## Now get the variant type counts per disease and per gene.
-		#clinvar_unique = rmdup_variants_df[rmdup_variants_df["Database"] == "ClinVar"]
-		#lovd_unique = rmdup_variants_df[rmdup_variants_df["Database"] != "ClinVar"]
+		var_types_dict = {"SNV": "single nucleotide variant",
+						"Deletion": "Deletion",
+						"Duplication": "Duplication",
+						"Insertion": "Insertion",
+						"Indel": "Indel",
+						"Identity": "identity",
+						"Inversion": "Inversion"}
 		lovd_within_disease = lovd_unique[lovd_unique["Gene Symbol"].isin(gene_list)]
+		lovd_within_tmp = lovd_within_disease[["HGVS Normalized Genomic Annotation", "Variant Type"]]
+		lovd_within_tmp = lovd_within_tmp.drop_duplicates() # If a variant is present in multiple LOVD databases, this will get rid of the duplicates
+		lovd_within_count_object = lovd_within_tmp.groupby(["Variant Type"]).size()
 		clinvar_within_disease = clinvar_unique[clinvar_unique["Gene Symbol"].isin(gene_list)]
+		clinvar_within_tmp = clinvar_within_disease[["HGVS Normalized Genomic Annotation", "Variant Type"]]
+		clinvar_within_count_object = clinvar_within_tmp.groupby(["Variant Type"]).size()
+		lovd_total_counts = 0
+		clinvar_total_counts = 0
+		disease_counts_dict = {}
+		disease_counts_dict["Database"] = ["ClinVar", "LOVD Databases"]
+		for key, value in zip(var_types_dict.keys(), var_types_dict.values()):
+			lovd_count = 0
+			clinvar_count = 0
+			if value in clinvar_within_count_object:
+				clinvar_count = clinvar_within_count_object[value]
+				clinvar_total_counts += clinvar_count
+			if value in lovd_within_count_object:
+				lovd_count = lovd_within_count_object[value]
+				lovd_total_counts += lovd_count
+			disease_counts_dict[key] = [clinvar_count, lovd_count]
+		disease_counts_dict["Total Variants"] = [clinvar_total_counts, lovd_total_counts]
+		disease_var_counts_df = pd.DataFrame.from_dict(disease_counts_dict)
+		disease_var_counts_df.to_csv(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Variant_Type_Counts_by_disease.csv')
+
+		plot_df = disease_var_counts_df[disease_var_counts_df.columns[:-1]].set_index('Database')
+		if "Variant_Counts_Legend.png" not in os.listdir(output_dir+'/Comparison_LOVD_Clinvar/'): # Only generate the legend once
+			f, (ax1) = plt.subplots(1,1, sharex=True) # This is just to creat the object for extracting the legend
+			plot_df.plot(kind="bar", stacked=True, ax = f.gca())
+			figsize = (2, 2.5)
+			fig_leg = plt.figure(figsize=figsize)
+			ax_leg = fig_leg.add_subplot(111)
+			# add the legend from the previous axes
+			ax_leg.legend(*ax1.get_legend_handles_labels(), loc='center')
+			# hide the axes frame and the x/y labels
+			ax_leg.axis('off')
+			fig_leg.savefig(output_dir+'/Comparison_LOVD_Clinvar/Variant_Counts_Legend.png')
+
+		f = plt.figure(figsize = (6,10))
+		plt.title('Counts of Variants of Each Type for '+ disease)
+		plt.ylabel('Variant Count')
+		plot_df.plot(kind="bar", stacked=True, ax = f.gca())
+		plt.legend().remove()
+		plt.savefig(output_dir+'/Comparison_LOVD_Clinvar/'+disease+'_Variant_Counts_by_Condition_Bar_Chart.png')
+
+
+
+
+
+
+
 
 
 
