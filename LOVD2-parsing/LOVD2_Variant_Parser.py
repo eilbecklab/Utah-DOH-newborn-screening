@@ -306,7 +306,7 @@ def web_scrape(disease_names, input_gene_lists):
 					# Leave it as a dash if the DNA change is a dash, which is common
 				converted_object = None
 				if hgvs_transcript == "-":
-					transcript_error = "No variant information provided, Biocommons not used"
+					transcript_error = "No variant information provided"
 				else:
 					# The ClinVar parser used some regex lines to make sure that duplications, insertions and indels didn't end in a number
 					# but I haven't seen any of those in the CCHMC. It can be copied from the ClinVar_Parser.py if needed
