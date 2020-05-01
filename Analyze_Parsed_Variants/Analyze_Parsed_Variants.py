@@ -204,6 +204,15 @@ args.add_argument(
 	action= 'store_true'
 )
 
+args.add_argument(
+	'--ignore_invalid_hgvs',
+	help="""By default, the program will go through the files containing variants
+	that did not pass HGVS normalization through biocommons. If this option is
+	specified, then the program will not save any files containing information
+	about these variants.""",
+	action= 'store_true'
+)
+
 def print_help_message():
 	print()
 	print("""\tWelcome to Analyze_Parsed_Variants.py. This program has been designed to count the number
@@ -280,21 +289,24 @@ output_dir = args.output_directory
 
 save_dictionary = args.save_dictionary
 no_bar_charts = args.no_bar_charts
+ignore_invalid = args.ignore_invalid_hgvs
 
 os.makedirs(output_dir, exist_ok = True)
 # Now start building the dictionary with all of the path information
 info_dict = {}
-invalid_info_dict = {}
+if not ignore_invalid:
+	invalid_info_dict = {}
 # Start with ClinVar
 if clinvar_directory:
 	# First add a slash to the end of this so that it will be consistent with the ones from LOVD3
 	if not clinvar_directory.endswith('/'):
 		clinvar_directory = clinvar_directory+'/'
 	info_dict['ClinVar'] = {}
-	invalid_info_dict['ClinVar'] = {}
 	# There is only one database for the ClinVar Parser, which is ClinVar
 	info_dict['ClinVar']['ClinVar'] = {}
-	invalid_info_dict['ClinVar']['ClinVar'] = {}
+	if not ignore_invalid:
+		invalid_info_dict['ClinVar'] = {}
+		invalid_info_dict['ClinVar']['ClinVar'] = {}
 	# Now add the disease names and the files associated with those diseases
 	if not clinvar_disease_names:
 		if global_disease_names:
@@ -311,7 +323,8 @@ if clinvar_directory:
 			info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/*Results.csv')
 		else:
 			info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/*ClinVar_Results.csv')
-		invalid_info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/Invalid_Annotations/*Results.csv')
+		if not ignore_invalid:
+			invalid_info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/Invalid_Annotations/*Results.csv')
 
 # Now add the LOVD2 database
 if lovd2_directory:
@@ -319,14 +332,16 @@ if lovd2_directory:
 	if not lovd2_directory.endswith('/'):
 		lovd2_directory = lovd2_directory+'/'
 	info_dict['LOVD2'] = {}
-	invalid_info_dict['LOVD2'] = {}
+	if not ignore_invalid:
+		invalid_info_dict['LOVD2'] = {}
 	# This is set up to use only one database for LOVD2, the CCHMC database
 	# Even though this should be consistent, I am going to use the final directory
 	# name from the path specified in case they have changed it (perhaps spelling
 	# out the full name)
 	database_name = lovd2_directory.split('/')[-2]
 	info_dict['LOVD2'][database_name] = {}
-	invalid_info_dict['LOVD2'][database_name] = {}
+	if not ignore_invalid:
+		invalid_info_dict['LOVD2'][database_name] = {}
 	# Now add the disease names and the files associated with those diseases
 	if not lovd2_disease_names:
 		if global_disease_names:
@@ -338,7 +353,8 @@ if lovd2_directory:
 				lovd2_disease_names.append(path.split('/')[-2])
 	for disease in lovd2_disease_names:
 		info_dict['LOVD2'][database_name][disease] = glob.glob(lovd2_directory+disease+'/*Results.csv')
-		invalid_info_dict['LOVD2'][database_name][disease] = glob.glob(lovd2_directory+disease+'/Invalid_Annotations/*Results.csv')
+		if not ignore_invalid:
+			invalid_info_dict['LOVD2'][database_name][disease] = glob.glob(lovd2_directory+disease+'/Invalid_Annotations/*Results.csv')
 
 # Now the tricky one, add LOVD3 databases
 
@@ -346,7 +362,8 @@ if lovd3_directory:
 	if not lovd3_directory.endswith('/'):
 		lovd3_directory = lovd3_directory+'/'
 	info_dict['LOVD3'] = {}
-	invalid_info_dict['LOVD3'] = {}
+	if not ignore_invalid:
+		invalid_info_dict['LOVD3'] = {}
 	# Now find all of the database names for the LOVD3
 	# If the config file is present, use that as it will be consistent with
 	# what was used for LOVD3_Variant_Parser.py
@@ -366,7 +383,8 @@ if lovd3_directory:
 	# Now that the database names are set, add them all to the dictionary
 	for database in lovd3_database_names:
 		info_dict['LOVD3'][database] = {}
-		invalid_info_dict['LOVD3'][database] = {}
+		if not ignore_invalid:
+			invalid_info_dict['LOVD3'][database] = {}
 	# Now add the disease names.
 	# If they have specified the disease names, use those for every directory
 	if not lovd3_disease_names:
@@ -376,7 +394,8 @@ if lovd3_directory:
 		for database in info_dict['LOVD3']:
 			for disease in lovd3_disease_names:
 				info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/*results.csv')
-				invalid_info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/Invalid_Annotations/*Results.csv')
+				if not ignore_invalid:
+					invalid_info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/Invalid_Annotations/*Results.csv')
 	else:
 		# This means no input was used to give the disease names
 		# They might be different for each database, so use glob to find the names
@@ -388,16 +407,21 @@ if lovd3_directory:
 			# Now we have the disease names for that specific database
 			for disease in disease_names:
 				info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/*results.csv')
-				invalid_info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/Invalid_Annotations/*Results.csv')
+				if not ignore_invalid:
+					invalid_info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/Invalid_Annotations/*Results.csv')
 
 # If they specified that they want to save the dictionary, save it to a json file
+if not ignore_invalid:
+	os.makedirs(output_dir+'/Invalid_HGVS', exist_ok = True)
+
 if save_dictionary:
 	dictionary_output = output_dir+'/'+output_prefix+'_info_dictionary.json'
-	invalid_dict_output = output_dir+'/'+output_prefix+'_Invalid_info_dictionary.json'
 	with open (dictionary_output, 'w') as file:
 		json.dump(info_dict, file, indent='\t')
-	with open (invalid_dict_output, 'w') as file:
-		json.dump(invalid_info_dict, file, indent='\t')
+	if not ignore_invalid:
+		invalid_dict_output = output_dir+'/Invalid_HGVS/'+output_prefix+'_Invalid_info_dictionary.json'
+		with open (invalid_dict_output, 'w') as file:
+			json.dump(invalid_info_dict, file, indent='\t')
 
 
 # Now read the variants from all files into one dataframe.
@@ -412,10 +436,10 @@ ClinVar_Columns = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 
 					'Review Status', 'Star Level', 'Submitter', 'Edited Date',
 					'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']
 
-invalid_columns = ClinVar_Columns+['HGVS Normalization Failure Reason']
+
 
 combined_variants_df = pd.DataFrame(columns = ClinVar_Columns)
-invalid_variants_df = pd.DataFrame(columns = invalid_columns)
+
 for parser in info_dict:
 	for database in info_dict[parser]:
 		for disease in info_dict[parser][database]:
@@ -423,12 +447,15 @@ for parser in info_dict:
 				tmp_df = pd.read_csv(file, index_col = 0)
 				combined_variants_df = pd.concat([combined_variants_df, tmp_df[ClinVar_Columns]]).reset_index(drop=True)
 
-for parser in invalid_info_dict:
-	for database in invalid_info_dict[parser]:
-		for disease in invalid_info_dict[parser][database]:
-			for file in invalid_info_dict[parser][database][disease]:
-				tmp_df = pd.read_csv(file, index_col = 0)
-				invalid_variants_df = pd.concat([invalid_variants_df, tmp_df[invalid_columns]], sort=False).reset_index(drop=True)
+if not ignore_invalid:
+	invalid_columns = ClinVar_Columns+['HGVS Normalization Failure Reason']
+	invalid_variants_df = pd.DataFrame(columns = invalid_columns)
+	for parser in invalid_info_dict:
+		for database in invalid_info_dict[parser]:
+			for disease in invalid_info_dict[parser][database]:
+				for file in invalid_info_dict[parser][database][disease]:
+					tmp_df = pd.read_csv(file, index_col = 0)
+					invalid_variants_df = pd.concat([invalid_variants_df, tmp_df[invalid_columns]], sort=False).reset_index(drop=True)
 
 # For some reason Biocommons HGVS normalization uses "identity" in some places and "Identity" in others, so case sensitvity can be a problem
 # The most common is lower case, so I am going to change all "Identity" to "identity"
@@ -445,9 +472,10 @@ combined_variants_df = combined_variants_df.apply(fix_case_identity, axis = 1)
 combined_variants_df = combined_variants_df.drop_duplicates()
 combined_variants_output = output_dir+'/'+output_prefix+'_combined_variants.csv'
 combined_variants_df.to_csv(combined_variants_output)
-invalid_variants_df = invalid_variants_df.drop_duplicates()
-invalid_variants_output = output_dir+'/'+output_prefix+'_combined_invalid_variants.csv'
-invalid_variants_df.to_csv(invalid_variants_output)
+if not ignore_invalid:
+	invalid_variants_df = invalid_variants_df.drop_duplicates()
+	invalid_variants_output = output_dir+'/Invalid_HGVS/'+output_prefix+'_combined_invalid_variants.csv'
+	invalid_variants_df.to_csv(invalid_variants_output)
 
 # Further analysis (particularly counting the number of variants of each type)
 # will exclude the ones from ClinVar that have multiple genes for the same variant
@@ -950,21 +978,60 @@ discordant.to_csv(output_dir+'/'+output_prefix+'_Nonidentical_HGVS.csv')
 # Next thing to do is figure out why these ones changed and count the number that changed for each type
 
 
-# The variants that did not pass HGVS normalization were read into a dataframe above.
-# Now they need to be parsed to count how many of these variants were present for each disease or database
-def simplify_failure_reason(df):
-	hgvs = df['HGVS Normalization Failure Reason']
-	if hgvs in ['Compound variant', 'Unknown breakpoint', 'Inserted unknown sequence, unknown breakpoint']:
-		hgvs = "Complex HGVS Annotation"
-	elif "No definitive failure reason" in hgvs:
-		hgvs = "Other"
-	elif hgvs == "Transcript Accession not in HGVS":
-		hgvs = "Transcript Accession not in Biocommons"
-	df['Failure Reason'] = hgvs
-	return df
+if not ignore_invalid:
+	# The variants that did not pass HGVS normalization were read into a dataframe above.
+	# Now they need to be parsed to count how many of these variants were present for each disease or database
 
-invalid_variants_df = invalid_variants_df.apply(simplify_failure_reason, axis = 1)
-#invalid_subset = invalid_variants_df[['index', 'Gene Symbol', 'Database', 'Failure Reason']]
+	def simplify_failure_reason(df):
+		hgvs = df['HGVS Normalization Failure Reason']
+		if hgvs in ['Compound variant', 'Unknown breakpoint', 'Inserted unknown sequence, unknown breakpoint']:
+			hgvs = "Complex HGVS Annotation"
+		elif "No definitive failure reason" in hgvs:
+			hgvs = "Other"
+		elif hgvs == "Transcript Accession not in HGVS":
+			hgvs = "Transcript Accession not in Biocommons"
+		df['Failure Reason'] = hgvs
+		return df
+
+	failure_reasons = ['No variant information provided', 'Complex HGVS Annotation', 'Microsatellite',
+						'Transcript Accession not in Biocommons','Incorrect reference base', 'Inserted unknown sequence', 'Other']
+
+	invalid_variants_df = invalid_variants_df.apply(simplify_failure_reason, axis = 1)
+	invalid_variants_df = invalid_variants_df.reset_index() # It has no unique identifier, but one will be needed later
+	invalid_subset = invalid_variants_df[['index', 'Gene Symbol', 'Database', 'Failure Reason']]
+
+	# First to count the failures of each type for all databases
+	databases_list = []
+	for parser in info_dict:
+		for database in info_dict[parser]:
+			databases_list.append(database)
+	db_invalid_count_dict = {}
+	for database in databases_list:
+		db_invalid_count_dict[database] = {}
+		for reason in failure_reasons:
+			db_invalid_count_dict[database][reason] = 0
+	invalid_counts = invalid_subset.groupby(['Database', 'Failure Reason']).size()
+	for index_tuple, reason_count in zip(invalid_counts.index, invalid_counts):
+		database = index_tuple[0]
+		reason = index_tuple[1]
+		db_invalid_count_dict[database][reason] = reason_count
+	header_line = ["Database"] + failure_reasons
+	db_invalid_count_df = pd.DataFrame.from_dict(db_invalid_count_dict, orient='index')
+	db_invalid_count_df.to_csv(output_dir+'/Invalid_HGVS/'+output_prefix+'_Failure_reason_counts_per_database.csv')
+
+
+
+
+	#ClinVar vs all LOVD databases
+	###########invalid_subset = invalid_variants_df[['index', 'Gene Symbol', 'Database', 'Failure Reason']]
+	clinvar_invalid = invalid_subset[invalid_subset['Database'] == 'ClinVar']
+	lovd_invalid = invalid_subset[invalid_subset['Database'] != 'ClinVar']
+
+
+
+
+
+	# First to count the
 
 
 
