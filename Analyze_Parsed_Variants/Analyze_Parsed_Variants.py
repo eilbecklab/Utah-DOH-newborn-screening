@@ -284,14 +284,17 @@ no_bar_charts = args.no_bar_charts
 os.makedirs(output_dir, exist_ok = True)
 # Now start building the dictionary with all of the path information
 info_dict = {}
+invalid_info_dict = {}
 # Start with ClinVar
 if clinvar_directory:
 	# First add a slash to the end of this so that it will be consistent with the ones from LOVD3
 	if not clinvar_directory.endswith('/'):
 		clinvar_directory = clinvar_directory+'/'
 	info_dict['ClinVar'] = {}
+	invalid_info_dict['ClinVar'] = {}
 	# There is only one database for the ClinVar Parser, which is ClinVar
 	info_dict['ClinVar']['ClinVar'] = {}
+	invalid_info_dict['ClinVar']['ClinVar'] = {}
 	# Now add the disease names and the files associated with those diseases
 	if not clinvar_disease_names:
 		if global_disease_names:
@@ -308,6 +311,7 @@ if clinvar_directory:
 			info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/*Results.csv')
 		else:
 			info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/*ClinVar_Results.csv')
+		invalid_info_dict['ClinVar']['ClinVar'][disease] = glob.glob(clinvar_directory+disease+'/Invalid_Annotations/*Results.csv')
 
 # Now add the LOVD2 database
 if lovd2_directory:
@@ -315,12 +319,14 @@ if lovd2_directory:
 	if not lovd2_directory.endswith('/'):
 		lovd2_directory = lovd2_directory+'/'
 	info_dict['LOVD2'] = {}
+	invalid_info_dict['LOVD2'] = {}
 	# This is set up to use only one database for LOVD2, the CCHMC database
 	# Even though this should be consistent, I am going to use the final directory
 	# name from the path specified in case they have changed it (perhaps spelling
 	# out the full name)
 	database_name = lovd2_directory.split('/')[-2]
 	info_dict['LOVD2'][database_name] = {}
+	invalid_info_dict['LOVD2'][database_name] = {}
 	# Now add the disease names and the files associated with those diseases
 	if not lovd2_disease_names:
 		if global_disease_names:
@@ -332,6 +338,7 @@ if lovd2_directory:
 				lovd2_disease_names.append(path.split('/')[-2])
 	for disease in lovd2_disease_names:
 		info_dict['LOVD2'][database_name][disease] = glob.glob(lovd2_directory+disease+'/*Results.csv')
+		invalid_info_dict['LOVD2'][database_name][disease] = glob.glob(lovd2_directory+disease+'/Invalid_Annotations/*Results.csv')
 
 # Now the tricky one, add LOVD3 databases
 
@@ -339,6 +346,7 @@ if lovd3_directory:
 	if not lovd3_directory.endswith('/'):
 		lovd3_directory = lovd3_directory+'/'
 	info_dict['LOVD3'] = {}
+	invalid_info_dict['LOVD3'] = {}
 	# Now find all of the database names for the LOVD3
 	# If the config file is present, use that as it will be consistent with
 	# what was used for LOVD3_Variant_Parser.py
@@ -358,6 +366,7 @@ if lovd3_directory:
 	# Now that the database names are set, add them all to the dictionary
 	for database in lovd3_database_names:
 		info_dict['LOVD3'][database] = {}
+		invalid_info_dict['LOVD3'][database] = {}
 	# Now add the disease names.
 	# If they have specified the disease names, use those for every directory
 	if not lovd3_disease_names:
@@ -367,6 +376,7 @@ if lovd3_directory:
 		for database in info_dict['LOVD3']:
 			for disease in lovd3_disease_names:
 				info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/*results.csv')
+				invalid_info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/Invalid_Annotations/*Results.csv')
 	else:
 		# This means no input was used to give the disease names
 		# They might be different for each database, so use glob to find the names
@@ -378,12 +388,17 @@ if lovd3_directory:
 			# Now we have the disease names for that specific database
 			for disease in disease_names:
 				info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/*results.csv')
+				invalid_info_dict['LOVD3'][database][disease] = glob.glob(lovd3_directory+database+'/'+disease+'/Invalid_Annotations/*Results.csv')
 
 # If they specified that they want to save the dictionary, save it to a json file
 if save_dictionary:
 	dictionary_output = output_dir+'/'+output_prefix+'_info_dictionary.json'
+	invalid_dict_output = output_dir+'/'+output_prefix+'_Invalid_info_dictionary.json'
 	with open (dictionary_output, 'w') as file:
 		json.dump(info_dict, file, indent='\t')
+	with open (invalid_dict_output, 'w') as file:
+		json.dump(invalid_info_dict, file, indent='\t')
+
 
 # Now read the variants from all files into one dataframe.
 ClinVar_Columns = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 'Ref',
@@ -397,13 +412,23 @@ ClinVar_Columns = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 
 					'Review Status', 'Star Level', 'Submitter', 'Edited Date',
 					'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']
 
+invalid_columns = ClinVar_Columns+['HGVS Normalization Failure Reason']
+
 combined_variants_df = pd.DataFrame(columns = ClinVar_Columns)
+invalid_variants_df = pd.DataFrame(columns = invalid_columns)
 for parser in info_dict:
 	for database in info_dict[parser]:
 		for disease in info_dict[parser][database]:
 			for file in info_dict[parser][database][disease]:
 				tmp_df = pd.read_csv(file, index_col = 0)
 				combined_variants_df = pd.concat([combined_variants_df, tmp_df[ClinVar_Columns]]).reset_index(drop=True)
+
+for parser in invalid_info_dict:
+	for database in invalid_info_dict[parser]:
+		for disease in invalid_info_dict[parser][database]:
+			for file in invalid_info_dict[parser][database][disease]:
+				tmp_df = pd.read_csv(file, index_col = 0)
+				invalid_variants_df = pd.concat([invalid_variants_df, tmp_df[invalid_columns]], sort=False).reset_index(drop=True)
 
 # For some reason Biocommons HGVS normalization uses "identity" in some places and "Identity" in others, so case sensitvity can be a problem
 # The most common is lower case, so I am going to change all "Identity" to "identity"
@@ -415,10 +440,15 @@ def fix_case_identity(df):
 	return df
 
 combined_variants_df = combined_variants_df.apply(fix_case_identity, axis = 1)
+# I don't need to fix the case for the invalid variants, none of them were entered as Identity
 # Sometimes one gene is in multiple diseases, which would result in multiple entries here. Drop the duplicates to clean this up.
 combined_variants_df = combined_variants_df.drop_duplicates()
 combined_variants_output = output_dir+'/'+output_prefix+'_combined_variants.csv'
 combined_variants_df.to_csv(combined_variants_output)
+invalid_variants_df = invalid_variants_df.drop_duplicates()
+invalid_variants_output = output_dir+'/'+output_prefix+'_combined_invalid_variants.csv'
+invalid_variants_df.to_csv(invalid_variants_output)
+
 # Further analysis (particularly counting the number of variants of each type)
 # will exclude the ones from ClinVar that have multiple genes for the same variant
 # Those ones will be saved in a separate file for easy access
@@ -685,6 +715,14 @@ if not no_bar_charts:
 
 # Now to look for the overlap between LOVD and ClinVar
 # I have already made a dataframe with the duplicates filtered out, so now I just need to get the counts of overlap
+def relabel_identity(df):
+	type = df["Variant Type"]
+	if type == "identity":
+		type = "single nucleotide variant"
+	df["Variant Type"] = type
+	return df
+
+
 if clinvar_directory and (lovd2_directory or lovd3_directory):
 
 	clinvar_unique = rmdup_variants_df[rmdup_variants_df["Database"] == "ClinVar"]
@@ -826,14 +864,16 @@ if clinvar_directory and (lovd2_directory or lovd3_directory):
 						"Duplication": "Duplication",
 						"Insertion": "Insertion",
 						"Indel": "Indel",
-						"Identity": "identity",
 						"Inversion": "Inversion"}
 		lovd_within_disease = lovd_unique[lovd_unique["Gene Symbol"].isin(gene_list)]
+		lovd_within_disease = lovd_within_disease.apply(relabel_identity, axis = 1)
 		lovd_within_tmp = lovd_within_disease[["HGVS Normalized Genomic Annotation", "Variant Type"]]
 		lovd_within_tmp = lovd_within_tmp.drop_duplicates() # If a variant is present in multiple LOVD databases, this will get rid of the duplicates
 		lovd_within_count_object = lovd_within_tmp.groupby(["Variant Type"]).size()
 		clinvar_within_disease = clinvar_unique[clinvar_unique["Gene Symbol"].isin(gene_list)]
+		clinvar_within_disease = clinvar_within_disease.apply(relabel_identity, axis = 1)
 		clinvar_within_tmp = clinvar_within_disease[["HGVS Normalized Genomic Annotation", "Variant Type"]]
+		clinvar_within_tmp = clinvar_within_tmp.drop_duplicates() # If it has multiple genes covered by the variant, it will be in here multiple times
 		clinvar_within_count_object = clinvar_within_tmp.groupby(["Variant Type"]).size()
 		lovd_total_counts = 0
 		clinvar_total_counts = 0
@@ -875,7 +915,10 @@ if clinvar_directory and (lovd2_directory or lovd3_directory):
 
 
 
-
+if save_dictionary:
+	gene_lists_output = output_dir+'/'+output_prefix+"_gene_lists_dict.json"
+	with open (gene_lists_output, 'w') as file:
+		json.dump(gene_lists_dict, file, indent='\t')
 
 
 
@@ -907,7 +950,21 @@ discordant.to_csv(output_dir+'/'+output_prefix+'_Nonidentical_HGVS.csv')
 # Next thing to do is figure out why these ones changed and count the number that changed for each type
 
 
+# The variants that did not pass HGVS normalization were read into a dataframe above.
+# Now they need to be parsed to count how many of these variants were present for each disease or database
+def simplify_failure_reason(df):
+	hgvs = df['HGVS Normalization Failure Reason']
+	if hgvs in ['Compound variant', 'Unknown breakpoint', 'Inserted unknown sequence, unknown breakpoint']:
+		hgvs = "Complex HGVS Annotation"
+	elif "No definitive failure reason" in hgvs:
+		hgvs = "Other"
+	elif hgvs == "Transcript Accession not in HGVS":
+		hgvs = "Transcript Accession not in Biocommons"
+	df['Failure Reason'] = hgvs
+	return df
 
+invalid_variants_df = invalid_variants_df.apply(simplify_failure_reason, axis = 1)
+#invalid_subset = invalid_variants_df[['index', 'Gene Symbol', 'Database', 'Failure Reason']]
 
 
 
@@ -919,7 +976,7 @@ discordant.to_csv(output_dir+'/'+output_prefix+'_Nonidentical_HGVS.csv')
 ####### Make a file of only the ones that have normalized annotations that aren't identical to the input genomic annotations
 ## Count the number of non-identical ones for each gene for each disease for each databse
 ## Count the number of each variant type for those too
-## Then find the overlap between ClinVar and the rest of them
+###### Then find the overlap between ClinVar and the rest of them
 
 ## Count the number of ones that failed validation per each gene and why
 ## Then find if the ones that do overlap have the same pathogenicity rating
