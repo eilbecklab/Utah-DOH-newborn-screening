@@ -626,18 +626,18 @@ header_line = ["Parser", "Database", "Disease", "Gene", "SNV", "Deletion", "Dupl
 counts_output = output_dir+'/'+output_prefix+'_variant_type_counts.csv'
 counts_df = pd.DataFrame(columns = header_line)
 for parser in counts_dictionary:
-	for databse in counts_dictionary[parser]:
-		for disease in counts_dictionary[parser][databse]:
-			for gene in counts_dictionary[parser][databse][disease]:
-				snv = counts_dictionary[parser][databse][disease][gene]['single nucleotide variant']
-				deletion = counts_dictionary[parser][databse][disease][gene]['Deletion']
-				duplication = counts_dictionary[parser][databse][disease][gene]['Duplication']
-				insertion = counts_dictionary[parser][databse][disease][gene]['Insertion']
-				indel = counts_dictionary[parser][databse][disease][gene]['Indel']
-				identity = counts_dictionary[parser][databse][disease][gene]['identity']
-				inversion = counts_dictionary[parser][databse][disease][gene]['Inversion']
+	for database in counts_dictionary[parser]:
+		for disease in counts_dictionary[parser][database]:
+			for gene in counts_dictionary[parser][database][disease]:
+				snv = counts_dictionary[parser][database][disease][gene]['single nucleotide variant']
+				deletion = counts_dictionary[parser][database][disease][gene]['Deletion']
+				duplication = counts_dictionary[parser][database][disease][gene]['Duplication']
+				insertion = counts_dictionary[parser][database][disease][gene]['Insertion']
+				indel = counts_dictionary[parser][database][disease][gene]['Indel']
+				identity = counts_dictionary[parser][database][disease][gene]['identity']
+				inversion = counts_dictionary[parser][database][disease][gene]['Inversion']
 				total_var = snv + deletion + duplication + insertion + indel + identity + inversion
-				all_variables = [parser, databse, disease, gene, snv, deletion, duplication, insertion, indel, identity, inversion, total_var]
+				all_variables = [parser, database, disease, gene, snv, deletion, duplication, insertion, indel, identity, inversion, total_var]
 				tmp_dict = {}
 				for variable, value in zip(header_line, all_variables):
 					tmp_dict[variable] = value
@@ -1019,19 +1019,106 @@ if not ignore_invalid:
 	db_invalid_count_df = pd.DataFrame.from_dict(db_invalid_count_dict, orient='index')
 	db_invalid_count_df.to_csv(output_dir+'/Invalid_HGVS/'+output_prefix+'_Failure_reason_counts_per_database.csv')
 
+	## Now for counting the number of invalid variants of each type per gene
+	## This one will be a little bit more complicated because many of these variants cover several genes
+	multi_gene_invalid = invalid_subset[invalid_subset["Gene Symbol"].str.contains(", ")]
+	invalid_index_list = []
+	invalid_Gene_List = []
+	invalid_database_List = []
+	invalid_failure_List = []
+	for index, row in multi_gene_invalid.iterrows():
+		index = row['index']
+		database = row['Database']
+		failure_reason = row['Failure Reason']
+		gene_list = row['Gene Symbol'].split(', ')
+		for gene in gene_list:
+			invalid_index_list.append(index)
+			invalid_Gene_List.append(gene)
+			invalid_database_List.append(database)
+			invalid_failure_List.append(failure_reason)
+	invalid_split_multi_gene_df = pd.DataFrame({'index': invalid_index_list,
+												'Gene Symbol': invalid_Gene_List,
+												'Database': invalid_database_List,
+												'Failure Reason': invalid_failure_List})
+	invalid_subset = invalid_subset.append(invalid_split_multi_gene_df, ignore_index=True)
+	invalid_subset = invalid_subset[~invalid_subset["Gene Symbol"].str.contains(", ")]
+	## Now each entry with multiple genes is listed with each gene, so it can loop through and count things per gene
+	## I am going to set this up the same way
+	invalid_counts_per_gene_dict = {} # Build a dictionary with 0 for each count
+	# If they have entered the gene lists, that will be the easiest way to build this.
+	if global_disease_names and input_gene_lists:
+		for parser in info_dict:
+			for database in info_dict[parser]:
+				invalid_counts_per_gene_dict[database] = {}
+				for disease, gene_list in zip(global_disease_names, input_gene_lists):
+					invalid_counts_per_gene_dict[database][disease] = {}
+					for gene in gene_list:
+						invalid_counts_per_gene_dict[database][disease][gene] = {}
+						for reason in failure_reasons:
+							invalid_counts_per_gene_dict[database][disease][gene][reason] = 0
+	# If they have not entered the gene lists, just use the gene_lists_dict that was built using
+	else:
+		for database in gene_lists_dict:
+			invalid_counts_per_gene_dict[database] = {}
+			for disease in gene_lists_dict[database]:
+				invalid_counts_per_gene_dict[database][disease] = {}
+				gene_list = gene_lists_dict[database][disease]
+				for gene in gene_list:
+					invalid_counts_per_gene_dict[database][disease][gene] = {}
+					for reason in failure_reasons:
+						invalid_counts_per_gene_dict[database][disease][gene][reason] = 0
+
+	invalid_counts_per_gene_object = invalid_subset.groupby(['Gene Symbol', 'Database', 'Failure Reason']).size()
+	for index_tuple, reason_count in zip(invalid_counts_per_gene_object.index, invalid_counts_per_gene_object):
+		gene = index_tuple[0]
+		database = index_tuple[1]
+		reason = index_tuple[2]
+		for disease in invalid_counts_per_gene_dict[database]:
+			if gene in invalid_counts_per_gene_dict[database][disease]:
+				invalid_counts_per_gene_dict[database][disease][gene][reason] = reason_count
+	# Now change the format to a dataframe so that it can be saved as a csv file
+	header_line = ["Database", "Disease", "Gene Symbol"] + failure_reasons + ["Total Count"]
+	invalid_counts_per_gene_df = pd.DataFrame(columns = header_line)
+	for database in invalid_counts_per_gene_dict:
+		for disease in invalid_counts_per_gene_dict[database]:
+			for gene in invalid_counts_per_gene_dict[database][disease]:
+				no_variant = invalid_counts_per_gene_dict[database][disease][gene]["No variant information provided"]
+				complex = invalid_counts_per_gene_dict[database][disease][gene]["Complex HGVS Annotation"]
+				microsatellite = invalid_counts_per_gene_dict[database][disease][gene]["Microsatellite"]
+				no_transcript = invalid_counts_per_gene_dict[database][disease][gene]["Transcript Accession not in Biocommons"]
+				incorrect = invalid_counts_per_gene_dict[database][disease][gene]["Incorrect reference base"]
+				unknown = invalid_counts_per_gene_dict[database][disease][gene]["Inserted unknown sequence"]
+				other = invalid_counts_per_gene_dict[database][disease][gene]["Other"]
+				total = no_variant + complex + microsatellite + no_transcript + incorrect + unknown + other
+				all_variables = [database, disease, gene, no_variant, complex, microsatellite,
+								no_transcript, incorrect, unknown, other, total]
+				tmp_dict = {}
+				for variable, value in zip(header_line, all_variables):
+					tmp_dict[variable] = value
+				invalid_counts_per_gene_df = invalid_counts_per_gene_df.append(tmp_dict, ignore_index=True)
+
+	invalid_per_gene_output = output_dir+'/Invalid_HGVS/'+output_prefix+'_Failure_reason_counts_per_gene.csv'
+	invalid_counts_per_gene_df.to_csv(invalid_per_gene_output)
 
 
 
-	#ClinVar vs all LOVD databases
-	###########invalid_subset = invalid_variants_df[['index', 'Gene Symbol', 'Database', 'Failure Reason']]
-	clinvar_invalid = invalid_subset[invalid_subset['Database'] == 'ClinVar']
-	lovd_invalid = invalid_subset[invalid_subset['Database'] != 'ClinVar']
 
 
 
 
 
-	# First to count the
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1041,7 +1128,7 @@ if not ignore_invalid:
 ####### Count the number of variants of each type for each gene, disease, database, parser
 
 ####### Make a file of only the ones that have normalized annotations that aren't identical to the input genomic annotations
-## Count the number of non-identical ones for each gene for each disease for each databse
+## Count the number of non-identical ones for each gene for each disease for each database
 ## Count the number of each variant type for those too
 ###### Then find the overlap between ClinVar and the rest of them
 
