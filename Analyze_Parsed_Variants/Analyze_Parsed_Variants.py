@@ -1018,6 +1018,71 @@ if not ignore_invalid:
 	header_line = ["Database"] + failure_reasons
 	db_invalid_count_df = pd.DataFrame.from_dict(db_invalid_count_dict, orient='index')
 	db_invalid_count_df.to_csv(output_dir+'/Invalid_HGVS/'+output_prefix+'_Failure_reason_counts_per_database.csv')
+	# Now to add graphs for the invalid counts
+	if "Legend_Invalid.png" not in os.listdir(output_dir+'/Invalid_HGVS/'):
+		f, (ax1) = plt.subplots(1,1, sharex=True)
+		db_invalid_count_df.plot(kind="bar", stacked=True, ax = f.gca())
+		figsize = (5, 2)
+		fig_leg = plt.figure(figsize=figsize)
+		ax_leg = fig_leg.add_subplot(111)
+		# add the legend from the previous axes
+		ax_leg.legend(*ax1.get_legend_handles_labels(), loc='center')
+		# hide the axes frame and the x/y labels
+		ax_leg.axis('off')
+		fig_leg.savefig(output_dir+'/Invalid_HGVS/Legend_Invalid.png')
+
+	f = plt.figure(figsize = (6,9))
+	plt.title('Counts of Variants that Failed HGVS Normalization' )
+	plt.ylabel('Variant Count')
+	db_invalid_count_df.plot(kind="bar", stacked=True, ax = f.gca())
+	plt.legend().remove()
+	plt.savefig(output_dir+'/Invalid_HGVS/All_Databases_Invalid_HGVS_Bar_Chart.png')
+
+	# There is no point in combining the LOVD databases if only one is used
+	db_list = list(db_invalid_count_df.index)
+	db_list.remove("ClinVar")
+	if len(db_list) > 1:
+		lovd_no_info = 0
+		lovd_complex = 0
+		lovd_micro = 0
+		lovd_no_biocommons = 0
+		lovd_incorrect = 0
+		lovd_insert_unknown = 0
+		lovd_other = 0
+		for index, row in db_invalid_count_df.iterrows():
+			no_info = row['No variant information provided']
+			complex_hgvs = row['Complex HGVS Annotation']
+			micro = row['Microsatellite']
+			not_in_biocommons = row['Transcript Accession not in Biocommons']
+			incorrect = row['Incorrect reference base']
+			insert_unknown = row['Inserted unknown sequence']
+			other = row['Other']
+			if index != "ClinVar":
+				lovd_no_info += no_info
+				lovd_complex += complex_hgvs
+				lovd_micro += micro
+				lovd_no_biocommons += not_in_biocommons
+				lovd_incorrect += incorrect
+				lovd_insert_unknown += insert_unknown
+				lovd_other += other
+		lovd_tmp = pd.DataFrame({"Database": ["LOVD Databases"], "No variant information provided": lovd_no_info,
+										'Complex HGVS Annotation': lovd_complex, 'Microsatellite': lovd_micro,
+										'Transcript Accession not in Biocommons': lovd_no_biocommons,
+										'Incorrect reference base': lovd_incorrect, 'Inserted unknown sequence': lovd_insert_unknown,
+										'Other': lovd_other})
+		combined_lovd_df = db_invalid_count_df[db_invalid_count_df.index == "ClinVar"].reset_index().rename(columns={"index":"Database"})
+		combined_lovd_df = combined_lovd_df.append(lovd_tmp, ignore_index=True).set_index("Database")
+
+		f = plt.figure(figsize = (6,9))
+		plt.title('Counts of Variants that Failed HGVS Normalization' )
+		plt.ylabel('Variant Count')
+		combined_lovd_df.plot(kind="bar", stacked=True, ax = f.gca())
+		plt.legend().remove()
+		plt.savefig(output_dir+'/Invalid_HGVS/Combined_LOVD_Invalid_HGVS_Bar_Chart.png')
+	### Combining the LOVD requires that there be more than just ClinVar
+
+
+
 
 	## Now for counting the number of invalid variants of each type per gene
 	## This one will be a little bit more complicated because many of these variants cover several genes
