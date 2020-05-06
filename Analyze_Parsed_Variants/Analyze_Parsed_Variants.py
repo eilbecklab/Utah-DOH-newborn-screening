@@ -1079,10 +1079,6 @@ if not ignore_invalid:
 		combined_lovd_df.plot(kind="bar", stacked=True, ax = f.gca())
 		plt.legend().remove()
 		plt.savefig(output_dir+'/Invalid_HGVS/Combined_LOVD_Invalid_HGVS_Bar_Chart.png')
-	### Combining the LOVD requires that there be more than just ClinVar
-
-
-
 
 	## Now for counting the number of invalid variants of each type per gene
 	## This one will be a little bit more complicated because many of these variants cover several genes
@@ -1164,6 +1160,103 @@ if not ignore_invalid:
 
 	invalid_per_gene_output = output_dir+'/Invalid_HGVS/'+output_prefix+'_Failure_reason_counts_per_gene.csv'
 	invalid_counts_per_gene_df.to_csv(invalid_per_gene_output)
+	## Now I want the counts of invalid variants per disease/condition
+	## Unfortunately, I have made it possible for different confitions per each parser
+
+	databases = []
+	for database in invalid_counts_per_gene_dict:
+		if database not in databases:
+			databases.append(database)
+	disease_genes_dict = {}
+	if global_disease_names and input_gene_lists:
+		for condition, gene_list in zip(global_disease_names, input_gene_lists):
+			disease_genes_dict[condition] = gene_list
+	else:
+		conditions = []
+		for database in invalid_counts_per_gene_dict:
+			for condition in invalid_counts_per_gene_dict[database]:
+				if condition not in conditions:
+					conditions.append(condition)
+		for condition in conditions:
+			condition_gene_list = []
+			for database in invalid_counts_per_gene_dict:
+				if condition in invalid_counts_per_gene_dict[database]:
+					for gene in invalid_counts_per_gene_dict[database][condition]:
+						if gene not in condition_gene_list:
+							condition_gene_list.append(gene) # If the gene is paired with the condition for any of the databases, it will be added to this list
+			disease_genes_dict[condition] = condition_gene_list
+
+	# Now get the counts
+	for condition in disease_genes_dict:
+		invalid_counts_per_condition_dict = {}
+		for database in databases:
+			invalid_counts_per_condition_dict[database] = {}
+			for reason in failure_reasons:
+				invalid_counts_per_condition_dict[database][reason] = 0
+		condition_subset = invalid_subset[invalid_subset["Gene Symbol"].isin(disease_genes_dict[condition])]
+		# Now I don't need the gene anymore
+		condition_subset = condition_subset[['index', 'Database', 'Failure Reason']].drop_duplicates()
+		count_object = condition_subset.groupby(['Database', 'Failure Reason']).size()
+		for index_tuple, var_count in zip(count_object.index, count_object):
+			reason = index_tuple[1]
+			database = index_tuple[0]
+			invalid_counts_per_condition_dict[database][reason] = var_count
+		invalid_counts_per_condition_df = pd.DataFrame.from_dict(invalid_counts_per_condition_dict, orient='index')
+
+		# The legend should match the one previously made
+		f = plt.figure(figsize = (6,9))
+		plt.title('Counts of Variants that Failed HGVS Normalization' )
+		plt.ylabel('Variant Count')
+		invalid_counts_per_condition_df.plot(kind="bar", stacked=True, ax = f.gca())
+		plt.legend().remove()
+		plt.savefig(output_dir+'/Invalid_HGVS/'+condition+'_All_Databases_Invalid_HGVS_Bar_Chart.png')
+		# Now to combine the counts from all of the LOVD databases
+		lovd_no_info = 0
+		lovd_complex = 0
+		lovd_micro = 0
+		lovd_no_biocommons = 0
+		lovd_incorrect = 0
+		lovd_insert_unknown = 0
+		lovd_other = 0
+		for index, row in invalid_counts_per_condition_df.iterrows():
+			no_info = row['No variant information provided']
+			complex_hgvs = row['Complex HGVS Annotation']
+			micro = row['Microsatellite']
+			not_in_biocommons = row['Transcript Accession not in Biocommons']
+			incorrect = row['Incorrect reference base']
+			insert_unknown = row['Inserted unknown sequence']
+			other = row['Other']
+			if index != "ClinVar":
+				lovd_no_info += no_info
+				lovd_complex += complex_hgvs
+				lovd_micro += micro
+				lovd_no_biocommons += not_in_biocommons
+				lovd_incorrect += incorrect
+				lovd_insert_unknown += insert_unknown
+				lovd_other += other
+		lovd_tmp = pd.DataFrame({"Database": ["LOVD Databases"], "No variant information provided": lovd_no_info,
+								'Complex HGVS Annotation': lovd_complex, 'Microsatellite': lovd_micro,
+								'Transcript Accession not in Biocommons': lovd_no_biocommons,
+								'Incorrect reference base': lovd_incorrect, 'Inserted unknown sequence': lovd_insert_unknown,
+								'Other': lovd_other})
+
+		invalid_counts_per_condition_df = invalid_counts_per_condition_df.reset_index().rename(columns={"index":"Database"})
+		invalid_counts_per_condition_df = invalid_counts_per_condition_df.append(lovd_tmp, ignore_index=True).set_index("Database")
+		invalid_counts_per_condition_df.to_csv(output_dir+'/Invalid_HGVS/'+condition+'_Invalid_Variant_Counts.csv')
+		invalid_condition_tmp_df = invalid_counts_per_condition_df[invalid_counts_per_condition_df.index.isin(["ClinVar", "LOVD Databases"])]
+		f = plt.figure(figsize = (6,9))
+		plt.title('Counts of Variants that Failed HGVS Normalization' )
+		plt.ylabel('Variant Count')
+		invalid_condition_tmp_df.plot(kind="bar", stacked=True, ax = f.gca())
+		plt.legend().remove()
+		plt.savefig(output_dir+'/Invalid_HGVS/'+condition+'_Combined_LOVD_Invalid_HGVS_Bar_Chart.png')
+
+
+
+
+
+
+
 
 
 
