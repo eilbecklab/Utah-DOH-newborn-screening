@@ -1351,3 +1351,4 @@ if not ignore_invalid:
 
 ## Relabel "identity" as SNV for individual gene bar charts
 ## Simplify loop from 1044 to 1067 where everything is a 0 and then adds from there for LOVD variants
+## Simplify failure reasons in all of the original 3 parsers and remove the simplify failure reason loop 

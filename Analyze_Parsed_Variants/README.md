@@ -104,6 +104,22 @@ Optional Arguments:
                         saved in a JSON file. By default, the program will not
                         save the dictionary.
 
+  --no_bar_charts     
+
+                        By default, the program will save bar charts
+                        representing the number of variants of each type for
+                        each gene, database and parser. If this option is
+                        specified, then the program will not save these
+                        figures.
+
+  --ignore_invalid_hgvs     
+
+                        By default, the program will go through the files
+                        containing variants that did not pass HGVS
+                        normalization through biocommons. If this option is
+                        specified, then the program will not save any files
+                        containing information about these variants.
+
 The following two options are related to specifying which databases were used
 for variant parsing with LOVD3_Variant_Parser.py.
 
