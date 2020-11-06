@@ -3,33 +3,43 @@
 // Additionally, this must contain the info about the websites for parsing all of the data
 [
   {
-    "name":"Global_Variome",
-    "home link": "https://databases.lovd.nl/shared/genes/{gene}",
-    "data link": "https://databases.lovd.nl/shared/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
-    "contains unique variants" : true
+	"name":"Global_Variome",
+	"home link": "https://databases.lovd.nl/shared/genes/{gene}",
+	"data link": "https://databases.lovd.nl/shared/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+	"contains unique variants" : true,
+	"version" : "25",
+	"header_skip": "2"
   },
   {
-    "name":"Human_Variome",
-    "home link": "http://proteomics.bio21.unimelb.edu.au/lovd/genes/{gene}",
-    "data link": "http://proteomics.bio21.unimelb.edu.au/lovd/ajax/viewlist.php?viewlistid=CustomVL_VOT_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscript%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&skip[chromosome]=chromosome&skip[allele_]=allele_&skip[transcriptid]=transcriptid&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
-    "contains unique variants" : false
+	"name":"Human_Variome",
+	"home link": "http://proteomics.bio21.unimelb.edu.au/lovd/genes/{gene}",
+	"data link": "http://proteomics.bio21.unimelb.edu.au/lovd/ajax/viewlist.php?viewlistid=CustomVL_VOT_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscript%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&skip[chromosome]=chromosome&skip[allele_]=allele_&skip[transcriptid]=transcriptid&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+	"contains unique variants" : false,
+	"version" : "07",
+	"header_skip": "1"
   },
   {
-    "name":"MSeqDR-LSDB",
-    "home link": "https://mseqdr.org/MITO/genes/{gene}",
-    "data link": "https://mseqdr.org/MITO/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
-    "contains unique variants" : false
+	"name":"MSeqDR-LSDB",
+	"home link": "https://mseqdr.org/MITO/genes/{gene}",
+	"data link": "https://mseqdr.org/MITO/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+	"contains unique variants" : false,
+	"version" : "21",
+	"header_skip": "1"
   },
   {
-    "name":"BIPmed_SNPhg19",
-    "home link": "http://bipmed.iqm.unicamp.br/snparray_hg19/genes/{gene}",
-    "data link": "http://bipmed.iqm.unicamp.br/snparray_hg19/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
-    "contains unique variants" : true
+	"name":"BIPmed_SNPhg19",
+	"home link": "http://bipmed.iqm.unicamp.br/snparray_hg19/genes/{gene}",
+	"data link": "http://bipmed.iqm.unicamp.br/snparray_hg19/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+	"contains unique variants" : true,
+	"version": "19",
+	"header_skip": "1"
   },
   {
-    "name":"BIPmed_WES",
-    "home link": "http://bipmed.iqm.unicamp.br/wes_hg19/genes/{gene}",
-    "data link": "http://bipmed.iqm.unicamp.br/wes_hg19/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
-    "contains unique variants" : true
+	"name":"BIPmed_WES",
+	"home link": "http://bipmed.iqm.unicamp.br/wes_hg19/genes/{gene}",
+	"data link": "http://bipmed.iqm.unicamp.br/wes_hg19/ajax/viewlist.php?viewlistid=CustomVL_VOTunique_VOG_{gene}&object=Custom_ViewList&object_id=VariantOnTranscriptUnique%2CVariantOnGenome&id={gene}&order=VariantOnTranscript%2FDNA%2CASC&search_transcriptid={LOVD_id}&page_size=1000&page={page_num}",
+	"contains unique variants" : true,
+	"version" : "2",
+	"header_skip": "1"
   }
 ]

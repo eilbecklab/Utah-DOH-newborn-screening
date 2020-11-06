@@ -120,7 +120,7 @@ hn = hgvs.normalizer.Normalizer(hdp)
 am = hgvs.assemblymapper.AssemblyMapper(hdp, assembly_name='GRCh37', alt_aln_method='splign', replace_reference=True)
 vr = hgvs.validator.Validator(hdp=hdp)
 
-def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id, database_name):
+def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id, database_name, skip_num):
 	# need database_data_link, LOVD ID, gene, page_num, transcript_accessions[i]
 	output_results = []
 	for page_number in count(1):
@@ -139,14 +139,18 @@ def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id
 				response_html = response.content.decode("utf-8")
 				bs_format = BeautifulSoup(response_html, "html.parser")
 				header_tmp_list = [tag.get_text().strip() for tag in bs_format.select('div')]
-				header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[1:]]
+				header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[skip_num:]]
+				header_list.append('LOVD ID')
 
 			return output_results, header_list # return what you have so far if one of the pages fails to open properly
 		response_html = response.content.decode("utf-8")
 		bs_format = BeautifulSoup(response_html, "html.parser")
 		# From this get the variant information from each line in the database (split by newline character)
 		tmp_variable = bs_format.select('tr.data')
+		id_list = [tag.get('id') for tag in tmp_variable]
 		results_list = [tag.get_text().replace("\r","").strip().split("\n") for tag in tmp_variable]
+		for single_id, single_result in zip(id_list, results_list):
+			single_result.append(single_id)
 		output_results = output_results+results_list
 		if len(results_list) == 0:
 			if count == 1:
@@ -160,11 +164,13 @@ def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id
 			response_html = response.content.decode("utf-8")
 			bs_format = BeautifulSoup(response_html, "html.parser")
 			header_tmp_list = [tag.get_text().strip() for tag in bs_format.select('div')]
-			header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[1:]]
+			header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[skip_num:]]
+			header_list.append('LOVD ID')
 			return output_results, header_list
 		elif len(results_list) < 1000:
 			header_tmp_list = [tag.get_text().strip() for tag in bs_format.select('div')]
-			header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[1:]]
+			header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[skip_num:]]
+			header_list.append('LOVD ID')
 			return output_results, header_list
 
 
@@ -439,6 +445,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 		database_name = database["name"]
 		database_home_link = database["home link"] # will still have variables in it
 		database_data_link = database["data link"] # will still have variables in it
+		skip_num = int(database["header_skip"])
 		database_contains_unique = database["contains unique variants"] # will be boolean true or false
 		for num, input_gene_list in enumerate(input_gene_lists):
 			disease_name = disease_names[num]
@@ -528,7 +535,8 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 				for i, LOVD_id in enumerate(LOVD_ids):
 					transcript_accession = transcript_accessions[i]
 
-					results_list, label_list = get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id, database_name)
+					results_list, label_list = get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id, database_name, skip_num)
+					#label_list.append('ID')
 					if len(results_list) == 0:
 						warnings.warn("Transcript "+transcript_accession+" in the database "+database_name+" has a page, but does not contain any variants.")
 						continue
@@ -654,7 +662,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 										'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
 										'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 										 'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-										'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
+										'Reference', 'Frequency', 'LOVD ID', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
 					failed_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] == "-"]
 					successful_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] != "-"]
 					if len(successful_HGVS_df) > 0:
@@ -665,7 +673,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 						## There are so few that are failing currently that I think I will just put this out as one csv
 						failed_HGVS_df = failed_HGVS_df.apply(find_failure_reason, axis = 1)
 						failed_HGVS_df.to_csv(output_directory+"/"+database_name+"/"+disease_name+"/Invalid_Annotations/"+gene+"_"+transcript_accession+"_"+database_name+"_InvalidResults.csv")
-					print("Finished "+transcript_accession+" for gene "+gene+" in database "+database_name+".", sep = "")
+					print("Finished "+transcript_accession+" for gene "+gene+" in database "+database_name+".")
 
 				# Some of the genes have multiple transcripts, and the same variant may be represented
 				# in more than one of the output files. The normalized variants need to be combined
@@ -680,7 +688,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 							'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
 							'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 							'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-							'Reference', 'Frequency', 'Transcript Normalization Failure Message',
+							'Reference', 'Frequency', 'LOVD ID', 'Transcript Normalization Failure Message',
 							'Genomic Normalization Failure Message']
 				if num_transcripts > 1:
 					list_of_files = glob.glob(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"*results.csv")
