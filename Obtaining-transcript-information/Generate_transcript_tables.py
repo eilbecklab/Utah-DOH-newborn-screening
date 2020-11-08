@@ -5,7 +5,9 @@
 
 from argparse import ArgumentParser, FileType
 
-args = ArgumentParser('./LOVD3_Variant_Parser.py', description='This program is for obtaining information about transcripts and chromosomes from a GFF file. Example usage: ./LOVD3_Variant_Parser.py --gff_file GRCh37_latest_genomic.gff --output_transcripts_file Transcript_Info_For_Dictionaries.csv --output_chromosome_file Chromosome_name_to_accession.csv')
+args = ArgumentParser('./Generate_transcript_tables.py', description='''This program is for obtaining information about
+transcripts and chromosomes from a GFF file. Example usage: ./Generate_transcript_tables.py --gff_file GRCh37_latest_genomic.gff
+--output_transcripts_file Transcript_Info_For_Dictionaries.csv --output_chromosome_file Chromosome_name_to_accession.csv''')
 
 args.add_argument(
 	'--gff_file',
