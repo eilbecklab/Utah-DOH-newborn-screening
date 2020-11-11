@@ -140,7 +140,7 @@ def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id
 				bs_format = BeautifulSoup(response_html, "html.parser")
 				header_tmp_list = [tag.get_text().strip() for tag in bs_format.select('div')]
 				header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[skip_num:]]
-				header_list.append('LOVD ID')
+				header_list.append('Database Accession')
 
 			return output_results, header_list # return what you have so far if one of the pages fails to open properly
 		response_html = response.content.decode("utf-8")
@@ -165,12 +165,12 @@ def get_data_from_tables(database_data_link, gene, transcript_accession, LOVD_id
 			bs_format = BeautifulSoup(response_html, "html.parser")
 			header_tmp_list = [tag.get_text().strip() for tag in bs_format.select('div')]
 			header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[skip_num:]]
-			header_list.append('LOVD ID')
+			header_list.append('Database Accession')
 			return output_results, header_list
 		elif len(results_list) < 1000:
 			header_tmp_list = [tag.get_text().strip() for tag in bs_format.select('div')]
 			header_list = [i.replace(u'\xa0', u' ') for i in header_tmp_list[skip_num:]]
-			header_list.append('LOVD ID')
+			header_list.append('Database Accession')
 			return output_results, header_list
 
 
@@ -659,10 +659,10 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 										'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
 										 'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
 										'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
-										'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
+										'VCF Alt', 'Database', 'Database Accession', 'Review Status', 'Star Level',
 										'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 										 'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-										'Reference', 'Frequency', 'LOVD ID', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
+										'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
 					failed_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] == "-"]
 					successful_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] != "-"]
 					if len(successful_HGVS_df) > 0:
@@ -685,10 +685,10 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 							'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
 							'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
 							'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
-							'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
+							'VCF Alt', 'Database', 'Database Accession', 'Review Status', 'Star Level',
 							'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 							'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-							'Reference', 'Frequency', 'LOVD ID', 'Transcript Normalization Failure Message',
+							'Reference', 'Frequency', 'Transcript Normalization Failure Message',
 							'Genomic Normalization Failure Message']
 				if num_transcripts > 1:
 					list_of_files = glob.glob(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"*results.csv")
