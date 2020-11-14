@@ -17,6 +17,7 @@ import hgvs.exceptions
 import pandas as pd
 import numpy as np
 import glob
+import json5
 from itertools import chain
 
 
@@ -56,6 +57,13 @@ args.add_argument(
 	default = "output_files"
 )
 
+args.add_argument(
+	'--gnomAD_json',
+	help='''This is a json file that was generated using the normalize_gnomAD_variants.py program and a subset of variants
+from the gnomAD version 2 vcf file. This will be read in as a dictionary to be used for finding the frequency information
+for individual variants. This is not required and by default will not be used.''',
+	default = None
+)
 
 args = args.parse_args()
 ClinVar_File = args.xml_file
@@ -77,6 +85,12 @@ output_directory = args.output_directory
 for disease in disease_names:
 	os.makedirs(output_directory+"/ClinVar/"+disease+"/Invalid_Annotations/", exist_ok=True)
 	# This will make the output_directory, ClinVar, disease name, and Invalid_Annotations directories if they are not present
+
+# Reading in the frequency dictionary may take a significant amount of time.
+gnomAD_json = args.gnomAD_json
+if gnomAD_json:
+	with open(gnomAD_json, 'r') as file:
+		frequency_dict = json5.load(file)
 
 # Moved these below all argparse statements because they take a long time to execute
 hdp = hgvs.dataproviders.uta.connect()
@@ -226,7 +240,8 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 				Individual_Variant_List = ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Pathogenicity, Disease, Genetic_Origin,
 											Inheritance_Pattern, Affected_Genes, Gene_Symbol, Compound_Het,"-", "-", "-", "-", "-",
 											"-", "-", "-", "-", "-", "ClinVar", RCV_num, Review_Status, Star_Level, Submitter,
-											Edited_Date, "-", "-", "-", "No Variant Information Present"]
+											Edited_Date, "-", "-", "-", "No Variant Information Present",'-', '-', '-','-', '-', '-',
+											'-', '-','-', '-']
 				if num_disease_genes == 1:
 					# Append to dictionary for individual gene
 					combined_diseases_dictionary[disease][Gene_Symbol]['Invalid'].append(Individual_Variant_List)
@@ -238,7 +253,8 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 				Individual_Variant_List = ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Pathogenicity, Disease, Genetic_Origin,
 											Inheritance_Pattern, Affected_Genes, Gene_Symbol, "-", Compound_Het,"-", "-", "-", "-", "-",
 											"-", "-", "-", "-", "-", "ClinVar", RCV_num, Review_Status, Star_Level, Submitter,
-											Edited_Date, "-", "No Variant Information Present"]
+											Edited_Date, "-", "No Variant Information Present", '-', '-', '-','-', '-', '-', '-', '-',
+											'-', '-']
 				not_annotated_variants.append(Individual_Variant_List)
 				print(RCV_num+" contains at least one variant that did not have any genes listed that were associated with any of the diseases in the input. The information associated with this variant will be stored to "+output_directory+"/Not_Annotated_Variants.csv")
 				print("Please check this variant on the ClinVar website: https://www.ncbi.nlm.nih.gov/clinvar/ ")
@@ -276,6 +292,16 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 			genomic_error = "-"
 			failure_reason = "-"
 			dbSNP = "-"
+			Overall_MAF = "-"
+			Control_MAF = "-"
+			African_MAF = "-"
+			NonFinish_Euro_MAF = "-"
+			Finnish_MAF = "-"
+			Ashkenazi_MAF = "-"
+			Latino_MAF = "-"
+			East_Asian_MAF = "-"
+			South_Asian_MAF = "-"
+			Other_Ancestry_MAF = "-"
 
 			Var_Type = child.get('Type', '-')
 
@@ -608,6 +634,32 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 			elif Chromosome == "12920":
 				Chromosome = "MT"
 
+			# Now we have the Genomic_Normalized, we can use that to determine the frequency in gnomAD using the frequency_dict
+			if Genomic_Normalized != '-': # If it was normalized
+				if gnomAD_json: # If they provided the dictionary file
+					if Genomic_Normalized in frequency_dict:
+						Overall_MAF = frequency_dict[Genomic_Normalized]['Overall_MAF']
+						Control_MAF = frequency_dict[Genomic_Normalized]['Control_MAF']
+						African_MAF = frequency_dict[Genomic_Normalized]['African_MAF']
+						NonFinish_Euro_MAF = frequency_dict[Genomic_Normalized]['NonFinish_Euro_MAF']
+						Finnish_MAF = frequency_dict[Genomic_Normalized]['Finnish_MAF']
+						Ashkenazi_MAF = frequency_dict[Genomic_Normalized]['Ashkenazi_MAF']
+						Latino_MAF = frequency_dict[Genomic_Normalized]['Latino_MAF']
+						East_Asian_MAF = frequency_dict[Genomic_Normalized]['East_Asian_MAF']
+						South_Asian_MAF = frequency_dict[Genomic_Normalized]['South_Asian_MAF']
+						Other_Ancestry_MAF = frequency_dict[Genomic_Normalized]['Other_Ancestry_MAF']
+					else:
+						Overall_MAF = 0
+						Control_MAF = 0
+						African_MAF = 0
+						NonFinish_Euro_MAF = 0
+						Finnish_MAF = 0
+						Ashkenazi_MAF = 0
+						Latino_MAF = 0
+						East_Asian_MAF = 0
+						South_Asian_MAF = 0
+						Other_Ancestry_MAF = 0
+
 			# If the genomic normalization did not work, find out the reason from the failure from the error messages
 			if Genomic_Normalized == "-":
 				# Now find the failure reason if it didn't normalize properly, use the transcript_error and genomic_error messages
@@ -646,7 +698,7 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 						failure_reason = "Microsatellite"
 					elif inserted_unknown_search != None:
 						# May also contain an unknown breakpoint
-						if "(?_" in transcript_err or "_?)" in transcript_error:
+						if "(?_" in transcript_error or "_?)" in transcript_error:
 							failure_reason = "Inserted unknown sequence, unknown breakpoint"
 						else:
 							failure_reason = "Inserted unknown sequence"
@@ -693,7 +745,10 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 											Compound_Het, Transcript, Transcript_notation, Transcript_HGVS, Protein_Accession,
 											Protein_Notation, Protein_HGVS, Chr_Accession, Pos_VCF, VCF_Ref, VCF_Alt,
 											"ClinVar", RCV_num, Review_Status, Star_Level, Submitter, Edited_Date,
+											Overall_MAF, Control_MAF, African_MAF, NonFinish_Euro_MAF, Finnish_MAF,
+											Ashkenazi_MAF, Latino_MAF, East_Asian_MAF, South_Asian_MAF, Other_Ancestry_MAF,
 											transcript_error, genomic_error]
+
 				if Genomic_Normalized == "-":
 					Individual_Variant_List.append(failure_reason)
 
@@ -745,17 +800,22 @@ def parse_clinvar_xml(disease_names, input_gene_lists, ClinVar_File, output_dire
 						"Affected Genes" , "Gene Symbol", "dbSNP ID", "Compound Het Status", "Transcript",
 						"Transcript Notation", "HGVS Transcript Notation","Protein Accession",
 						"Protein Notation", "HGVS Protein Annotation", "Chr Accession", "VCF Pos",
-						"VCF Ref", "VCF Alt", "Database", "ClinVar Accession", "Review Status",
-						"Star Level", "Submitter", "Edited Date", "Transcript Normalization Failure Message",
+						"VCF Ref", "VCF Alt", "Database", "Database Accession", "Review Status",
+						"Star Level", "Submitter", "Edited Date", "Overall_MAF", "Control_MAF", "African_MAF",
+						"NonFinish_Euro_MAF", "Finnish_MAF", "Ashkenazi_MAF", "Latino_MAF", "East_Asian_MAF",
+						"South_Asian_MAF", "Other_Ancestry_MAF", "Transcript Normalization Failure Message",
 						"Genomic Normalization Failure Message"]
+
 	column_labels_invalid = ["Genome Assembly", "Chr", "Position Start", "Position Stop", "Ref", "Alt",
 						"Genomic Annotation", "HGVS Normalized Genomic Annotation", "Variant Type",
 						"Variant Length", "Pathogenicity", "Disease", "Genetic Origin", "Inheritance Pattern",
 						"Affected Genes" , "Gene Symbol", "dbSNP ID", "Compound Het Status", "Transcript",
 						"Transcript Notation", "HGVS Transcript Notation","Protein Accession",
 						"Protein Notation", "HGVS Protein Annotation", "Chr Accession", "VCF Pos",
-						"VCF Ref", "VCF Alt", "Database", "ClinVar Accession", "Review Status",
-						"Star Level", "Submitter", "Edited Date", "Transcript Normalization Failure Message",
+						"VCF Ref", "VCF Alt", "Database", "Database Accession", "Review Status",
+						"Star Level", "Submitter", "Edited Date", "Overall_MAF", "Control_MAF", "African_MAF",
+						"NonFinish_Euro_MAF", "Finnish_MAF", "Ashkenazi_MAF", "Latino_MAF", "East_Asian_MAF",
+						"South_Asian_MAF", "Other_Ancestry_MAF", "Transcript Normalization Failure Message",
 						"Genomic Normalization Failure Message", "HGVS Normalization Failure Reason"]
 	for disease_key in combined_diseases_dictionary.keys():
 		for gene_key in combined_diseases_dictionary[disease_key].keys():

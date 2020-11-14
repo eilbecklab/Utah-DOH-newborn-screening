@@ -24,6 +24,8 @@ from argparse import ArgumentParser, FileType
 import json5
 from os.path import splitext
 
+import sys
+sys.stdout = open('LOVD3_stdout.out')
 
 args = ArgumentParser('./LOVD3_Variant_Parser.py', description='This program has been designed to web scrape the LOVD3 databases to obtain the information listed for variants in specific genes relating to a disase. For details on preparing input files, see README.md. Example usage: ./LOVD3_Variant_Parser.py --config_file LOVD3_Databases.json --disease_gene_lists SCID_ny_panel.txt Metabolic_diseases_genes.txt --disease_names SCID Metabolic_Diseases --output_directory Total_Outputs --chr_to_accession Chromosome_name_to_accession.csv --transcript_info Transcript_Info_For_Dictionaries.csv')
 
@@ -679,9 +681,9 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 					else:
 						gene_df["Pathogenicity"] = "-"
 					if "ClinVar ID" in column_names:
-						gene_df = gene_df.rename(index = str, columns = {"ClinVar ID": "Database Accession"})
+						gene_df = gene_df.rename(index = str, columns = {"ClinVar ID": "ClinVar Accession"})
 					else:
-						gene_df["Database Accession"] = "-"
+						gene_df["ClinVar Accession"] = "-"
 					if "Origin" in column_names:
 						gene_df = gene_df.rename(index = str, columns = {"Origin": "Genetic Origin"})
 					else:
@@ -728,7 +730,8 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 										'VCF Alt', 'Database', 'Database Accession', 'Review Status', 'Star Level',
 										'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 										 'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-										'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
+										'Reference', 'Frequency', 'ClinVar Accession', 'Transcript Normalization Failure Message',
+										'Genomic Normalization Failure Message']]
 
 
 					gene_df = gene_df.apply(get_frequency_info, axis = 1)
@@ -759,7 +762,7 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 							'VCF Alt', 'Database', 'Database Accession', 'Review Status', 'Star Level',
 							'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 							'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-							'Reference', 'Frequency', 'Transcript Normalization Failure Message',
+							'Reference', 'Frequency', 'ClinVar Accession','Transcript Normalization Failure Message',
 							'Genomic Normalization Failure Message', 'Overall_MAF', 'Control_MAF', 'African_MAF',
 							'NonFinish_Euro_MAF', 'Finnish_MAF', 'Ashkenazi_MAF', 'Latino_MAF', 'East_Asian_MAF',
 							'South_Asian_MAF', 'Other_Ancestry_MAF']
