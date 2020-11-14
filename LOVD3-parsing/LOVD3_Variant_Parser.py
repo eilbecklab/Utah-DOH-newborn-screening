@@ -17,6 +17,7 @@ import pandas as pd
 import numpy as np
 from itertools import count
 import glob
+import json5
 
 
 from argparse import ArgumentParser, FileType
@@ -68,6 +69,14 @@ args.add_argument(
 	default = None
 )
 
+args.add_argument(
+	'--gnomAD_json',
+	help='''This is a json file that was generated using the normalize_gnomAD_variants.py program and a subset of variants
+from the gnomAD version 2 vcf file. This will be read in as a dictionary to be used for finding the frequency information
+for individual variants. This is not required and by default will not be used.''',
+	default = None
+)
+
 args = args.parse_args()
 if args.disease_names == None:
 	args.disease_names = [splitext(gene_list)[0] for gene_list in args.disease_gene_lists]
@@ -112,6 +121,11 @@ else:
 	transcript_to_chr_accession_dict = dict(zip(list(correct_chromosome_accessions["Transcript_ID_Full"].values), list(correct_chromosome_accessions["Chromosome_Accession"].values)))
 	unique_df = correct_chromosome_accessions[["Gene", "Chromosome_Accession"]].drop_duplicates()
 	gene_to_chr_accession_dict = dict(zip(list(unique_df["Gene"].values), list(unique_df["Chromosome_Accession"].values)))
+
+gnomAD_json = args.gnomAD_json
+if gnomAD_json:
+	with open(gnomAD_json, 'r') as file:
+		frequency_dict = json5.load(file)
 
 # These take quite some time to connect, so they have been moved below the parser arguements.
 hdp = hgvs.dataproviders.uta.connect()
@@ -440,6 +454,58 @@ def find_failure_reason(row):
 	row["HGVS Normalization Failure Reason"] = reason
 	return row
 
+def get_frequency_info(df):
+	normalized = df['HGVS Normalized Genomic Annotation']
+	#fail_reason = df['HGVS Normalized Genomic Annotation']
+	Overall_MAF = '-'
+	Control_MAF = '-'
+	African_MAF = '-'
+	NonFinish_Euro_MAF = '-'
+	Finnish_MAF = '-'
+	Ashkenazi_MAF = '-'
+	Latino_MAF = '-'
+	East_Asian_MAF = '-'
+	South_Asian_MAF = '-'
+	Other_Ancestry_MAF = '-'
+	# Keep these as a dash if it does not have a valid hgvs or they did not supply a frequency json
+	if gnomAD_json:
+		if normalized != '-':
+			if normalized in frequency_dict:
+				Overall_MAF = frequency_dict[normalized]['Overall_MAF']
+				Control_MAF = frequency_dict[normalized]['Control_MAF']
+				African_MAF = frequency_dict[normalized]['African_MAF']
+				NonFinish_Euro_MAF = frequency_dict[normalized]['NonFinish_Euro_MAF']
+				Finnish_MAF = frequency_dict[normalized]['Finnish_MAF']
+				Ashkenazi_MAF = frequency_dict[normalized]['Ashkenazi_MAF']
+				Latino_MAF = frequency_dict[normalized]['Latino_MAF']
+				East_Asian_MAF = frequency_dict[normalized]['East_Asian_MAF']
+				South_Asian_MAF = frequency_dict[normalized]['South_Asian_MAF']
+				Other_Ancestry_MAF = frequency_dict[normalized]['Other_Ancestry_MAF']
+			else:
+				Overall_MAF = 0
+				Control_MAF = 0
+				African_MAF = 0
+				NonFinish_Euro_MAF = 0
+				Finnish_MAF = 0
+				Ashkenazi_MAF = 0
+				Latino_MAF = 0
+				East_Asian_MAF = 0
+				South_Asian_MAF = 0
+				Other_Ancestry_MAF = 0
+	df['Overall_MAF'] = Overall_MAF
+	df['Control_MAF'] = Control_MAF
+	df['African_MAF'] = African_MAF
+	df['NonFinish_Euro_MAF'] = NonFinish_Euro_MAF
+	df['Finnish_MAF'] = Finnish_MAF
+	df['Ashkenazi_MAF'] = Ashkenazi_MAF
+	df['Latino_MAF'] = Latino_MAF
+	df['East_Asian_MAF'] = East_Asian_MAF
+	df['South_Asian_MAF'] = South_Asian_MAF
+	df['Other_Ancestry_MAF'] = Other_Ancestry_MAF
+
+	return df
+
+
 def web_scrape(disease_names, input_gene_lists, databases_list):
 	for database in databases_list:
 		database_name = database["name"]
@@ -613,9 +679,9 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 					else:
 						gene_df["Pathogenicity"] = "-"
 					if "ClinVar ID" in column_names:
-						gene_df = gene_df.rename(index = str, columns = {"ClinVar ID": "ClinVar Accession"})
+						gene_df = gene_df.rename(index = str, columns = {"ClinVar ID": "Database Accession"})
 					else:
-						gene_df["ClinVar Accession"] = "-"
+						gene_df["Database Accession"] = "-"
 					if "Origin" in column_names:
 						gene_df = gene_df.rename(index = str, columns = {"Origin": "Genetic Origin"})
 					else:
@@ -663,6 +729,11 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 										'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 										 'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
 										'Reference', 'Frequency', 'Transcript Normalization Failure Message', 'Genomic Normalization Failure Message']]
+
+
+					gene_df = gene_df.apply(get_frequency_info, axis = 1)
+
+
 					failed_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] == "-"]
 					successful_HGVS_df = gene_df[gene_df['HGVS Normalized Genomic Annotation'] != "-"]
 					if len(successful_HGVS_df) > 0:
@@ -689,7 +760,10 @@ def web_scrape(disease_names, input_gene_lists, databases_list):
 							'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 							'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
 							'Reference', 'Frequency', 'Transcript Normalization Failure Message',
-							'Genomic Normalization Failure Message']
+							'Genomic Normalization Failure Message', 'Overall_MAF', 'Control_MAF', 'African_MAF',
+							'NonFinish_Euro_MAF', 'Finnish_MAF', 'Ashkenazi_MAF', 'Latino_MAF', 'East_Asian_MAF',
+							'South_Asian_MAF', 'Other_Ancestry_MAF']
+
 				if num_transcripts > 1:
 					list_of_files = glob.glob(output_directory+"/"+database_name+"/"+disease_name+"/"+gene+"*results.csv")
 					# This way it can take the list of all files with the correct gene name in the correct folder
