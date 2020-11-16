@@ -5,29 +5,37 @@ import glob
 import pandas as pd
 
 
-args = ArgumentParser('./combine_passed_variants.py', description='This program is a simple one to combine the output files containing the variants that passed HGVS normalization into one csv file. Example usage: ./combine_passed_variants.py --config_file LOVD3_Databases.json --LOVD3_directory output_files --disease_names SCID Metabolic_Diseases --output_directory output_files')
+args = ArgumentParser('''./combine_passed_variants.py', description='This program is a simple one to combine the output files containing the
+variants that passed HGVS normalization into one csv file. Example usage: ./combine_passed_variants.py --config_file LOVD3_Databases.json
+--LOVD3_directory output_files --disease_names SCID Metabolic_Diseases --output_directory output_files''')
 
 args.add_argument(
+	'-c',
 	'--config_file',
-	#type=FileType('r'),
-	help="This is the config file that was used for the LOVD3 parser. If this option is not provided, the program will look for a json file in your present working directory.",
+	help="""This is the config file that was used for the LOVD3 parser. If this option is not provided, the program will look for a json
+	file in your present working directory.""",
 	default = None,
 )
 
 args.add_argument(
+	'-l',
 	'--LOVD3_directory',
-	help="This is the name of the directory where the variants from LOVD3 parser are stored. The final output file will be stored in this directory if no output directory is stored with the option --output_directory. Default is output_files.",
+	help="""This is the name of the directory where the variants from LOVD3 parser are stored. The final output file will be stored in this
+	directory if no output directory is stored with the option --output_directory. Default is output_files.""",
 	default = "output_files"
 )
 
 args.add_argument(
+	'-d',
 	'--disease_names',
 	nargs='+',
-	help="This is the same list of disease names supplied into LOVD3_Variant_Parser.py. If this is not specified, the program will try to gather the information from the directory specified with --LOVD3_directory. ",
+	help="""This is the same list of disease names supplied into LOVD3_Variant_Parser.py. If this is not specified, the program will try
+	to gather the information from the directory specified with --LOVD3_directory. """,
 	default = None
 )
 
 args.add_argument(
+	'-o',
 	'--output_directory',
 	help="This is where your output file will be stored. If this option is not used, the directory specified in --LOVD3_directory will be used.",
 	default = None
@@ -74,11 +82,13 @@ columns = ['Genome Assembly', 'Chr', 'Position Start', 'Position Stop', 'Ref', '
 			'Affected Genes', 'Gene Symbol', 'Compound Het Status', 'Transcript',
 			'Transcript Notation', 'HGVS Transcript Notation', 'Protein Accession',
 			'Protein Notation', 'HGVS Protein Annotation', 'Chr Accession', 'VCF Pos', 'VCF Ref',
-			'VCF Alt', 'Database', 'ClinVar Accession', 'Review Status', 'Star Level',
+			'VCF Alt', 'Database', 'Database Accession', 'Review Status', 'Star Level',
 			'Submitter', 'Edited Date', 'DNA change (genomic) (hg19)', 'Effect',
 			'Exon','Reported', 'DB-ID', 'dbSNP ID', 'Published as', 'Variant remarks',
-			'Reference', 'Frequency', 'Transcript Normalization Failure Message',
-			'Genomic Normalization Failure Message']
+			'Reference', 'Frequency', 'ClinVar Accession', 'Transcript Normalization Failure Message',
+			'Genomic Normalization Failure Message','Overall_MAF', 'Control_MAF', 'African_MAF',
+			'NonFinish_Euro_MAF', 'Finnish_MAF', 'Ashkenazi_MAF','Latino_MAF', 'East_Asian_MAF',
+			'South_Asian_MAF', 'Other_Ancestry_MAF']
 
 merged_df = pd.DataFrame(columns = columns)
 for database in databases_list:
@@ -88,5 +98,5 @@ for database in databases_list:
 		files = [f for f in glob.glob(base_directory+"/*.csv")]
 		for file in files:
 			tmp_df = pd.read_csv(file, index_col = 0)
-			merged_df = pd.concat([merged_df, tmp_df]).reset_index(drop=True)
+			merged_df = pd.concat([merged_df, tmp_df], sort=False).reset_index(drop=True)
 merged_df.to_csv(output_directory+"/LOVD3_All_Valid_HGVS_Annotations.csv")
